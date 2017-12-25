@@ -1,0 +1,420 @@
+/**
+	******************************************************************************
+	* @file    UART/UART_TwoBoards_ComIT/Src/main.c 
+	* @author  MCD Application Team
+	* @brief   This sample code shows how to use UART HAL API to transmit
+	*          and receive a data buffer with a communication process based on
+	*          IT transfer. 
+	*          The communication is done using 2 Boards.
+	******************************************************************************
+	* @attention
+	*
+	* <h2><center>&copy; COPYRIGHT(c) 2016 STMicroelectronics</center></h2>
+	*
+	* Redistribution and use in source and binary forms, with or without modification,
+	* are permitted provided that the following conditions are met:
+	*   1. Redistributions of source code must retain the above copyright notice,
+	*      this list of conditions and the following disclaimer.
+	*   2. Redistributions in binary form must reproduce the above copyright notice,
+	*      this list of conditions and the following disclaimer in the documentation
+	*      and/or other materials provided with the distribution.
+	*   3. Neither the name of STMicroelectronics nor the names of its contributors
+	*      may be used to endorse or promote products derived from this software
+	*      without specific prior written permission.
+	*
+	* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+	* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+	* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+	* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+	* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+	* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+	* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+	* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+	* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+	* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+	*
+	******************************************************************************
+	*/
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "log.h"
+#include "cmsis_os.h"
+/** @addtogroup STM32F7xx_HAL_Examples
+	* @{
+	*/
+
+/** @addtogroup UART_TwoBoards_ComIT
+	* @{
+	*/ 
+
+/* Private typedef -----------------------------------------------------------*/
+/* Private define ------------------------------------------------------------*/
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+__IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
+osThreadId i2c_cmd_ThreadId;
+osThreadId led_ring_ThreadId;
+osThreadId i2c_master_ThreadId;
+osThreadId i2c_slave_ThreadId;
+
+#define STM32F7_ADDRESS			0xD0
+#define CYPRESS_ADDR			0x37
+#define STA321MP_ADDR			0x40
+
+/* I2C TIMING Register define when I2C clock source is APB1 (SYSCLK/4) */
+/* I2C TIMING is calculated in case of the I2C Clock source is the APB1CLK = 50 MHz */
+/* This example use TIMING to 0x40912732 to reach 100 kHz speed (Rise time = 700 ns, Fall time = 100 ns) */
+#define I2C_TIMING				0x40912732
+
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+/* I2C handler declaration */
+I2C_HandleTypeDef I2cHandle;
+uint8_t aTxBuffer[] = " ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling**** ";
+uint8_t aRxBuffer[RXBUFFERSIZE];
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+static void Error_Handler(void);
+static void CPU_CACHE_Enable(void);
+static void i2c_cmd_Thread(void const *argument);
+static void led_ring_Thread(void const *argument);
+static void i2c_master_Thread(void const *argument);
+static void i2c_slave_Thread(void const *argument);
+/* Private functions ---------------------------------------------------------*/
+
+void i2c_cmd_init(void)
+{
+	/*##Configure the I2C peripheral ######################################*/
+	I2cHandle.Instance              = I2Cx;
+	I2cHandle.Init.Timing           = I2C_TIMING;
+	I2cHandle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+	I2cHandle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+	I2cHandle.Init.OwnAddress1      = 0x00;
+	I2cHandle.Init.OwnAddress2		= 0x00;
+	I2cHandle.Init.OwnAddress2Masks	= I2C_OA2_NOMASK;
+	I2cHandle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+	I2cHandle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;  
+
+	if(HAL_I2C_Init(&I2cHandle) != HAL_OK)
+	{
+		/* Initialization Error */
+		Error_Handler();
+	}
+
+	/* Enable the Analog I2C Filter */
+	HAL_I2CEx_ConfigAnalogFilter(&I2cHandle,I2C_ANALOGFILTER_ENABLE);
+}
+/**
+	* @brief  Main program
+	* @param  None
+	* @retval None
+	*/
+int main(void)
+{
+	/* Enable the CPU Cache */
+	CPU_CACHE_Enable();
+	HAL_Init();
+
+	/* Configure the system clock to 216 MHz */
+	SystemClock_Config();
+	/* Configure LED1 */
+	BSP_LED_Init(LED1);
+	/* Configure USER Button */
+	BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
+
+	log_init();
+	i2c_cmd_init();
+
+	/* Threads definition */
+//	osThreadDef(i2c_cmd, i2c_cmd_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(i2c_master, i2c_master_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+
+	/* Start threads */
+//	i2c_cmd_ThreadId = osThreadCreate(osThread(i2c_cmd), NULL);
+	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
+	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+	/* Start scheduler */
+	osKernelStart();
+
+	/* We should never
+	 get here as control is now taken by the scheduler */
+	for(;;);
+}
+
+
+/**
+	* @brief  Toggle LED1 thread
+	* @param  Thread not used
+	* @retval None
+	*/
+static void i2c_cmd_Thread(void const *argument)
+{
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{ 
+		if(HAL_I2C_Slave_Receive_DMA(&I2cHandle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+		{
+			printf("%x\r\n", aRxBuffer[0]);
+			printf("%x\r\n", aRxBuffer[1]);
+		}
+		else
+		{
+			osDelayUntil(&PreviousWakeTime, 100);
+		}
+
+	}
+}
+/**
+	* @brief  Toggle LED1 thread
+	* @param  Thread not used
+	* @retval None
+	*/
+static void i2c_master_Thread(void const *argument)
+{
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	aTxBuffer[0] = 0x00; //address reg
+	aTxBuffer[1] = 0x01; //data
+
+	for(;;)
+	{
+		/* Wait for USER button press before starting the Communication */
+		while(BSP_PB_GetState(BUTTON_KEY) != 1)
+		{
+
+		}
+
+		/* wait for USER button release before starting the Communication */
+		while(BSP_PB_GetState(BUTTON_KEY) != 0)
+		{
+
+		}
+
+	 	/*## Start the transmission process #####################################*/  
+		/* While the I2C in reception process, user can transmit data through 
+		 "aTxBuffer" buffer */
+		while(HAL_I2C_Master_Transmit_DMA(&I2cHandle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
+		{
+		/* Error_Handler() function is called when Timeout error occurs.
+		   When Acknowledge failure occurs (Slave don't acknowledge it's address)
+		   Master restarts communication */
+			if (HAL_I2C_GetError(&I2cHandle) != HAL_I2C_ERROR_AF)
+			{
+				Error_Handler();
+			}
+		}
+
+		/*## Wait for the end of the transfer ###################################*/  
+		/*  Before starting a new communication transfer, you need to check the current   
+	      state of the peripheral; if it’s busy you need to wait for the end of current
+	      transfer before starting a new one.
+	      For simplicity reasons, this example is just waiting till the end of the 
+	      transfer, but application may perform other tasks while transfer operation
+	      is ongoing. */  
+		while (HAL_I2C_GetState(&I2cHandle) != HAL_I2C_STATE_READY)
+		{
+		}
+  		/* Wait for USER Button press before starting the Communication */
+  		while (BSP_PB_GetState(BUTTON_KEY) != 1)
+  		{
+  		}
+
+  		/* Wait for USER Button release before starting the Communication */
+  		while (BSP_PB_GetState(BUTTON_KEY) != 0)
+  		{
+  		}
+  
+  		/*## Put I2C peripheral in reception process ###########################*/  
+  		if (HAL_I2C_Master_Receive_DMA(&I2cHandle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+  		{
+  			BSP_LED_On(LED1);
+  			printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
+  			printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
+  		}
+		else
+		{
+			osDelayUntil(&PreviousWakeTime, 100);
+		}
+
+	}
+
+}
+
+staic void i2c_slave_Thread(void const *argument)
+{
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		while (HAL_I2C_GetState(&I2cHandle) != HAL_I2C_STATE_READY)
+		{
+		}
+
+		if(HAL_I2C_Slave_Receive_DMA(&I2cHandle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+		{
+			BSP_LED_On(LED1);
+			printf("%x\r\n", aRxBuffer[0]);
+			printf("%x\r\n", aRxBuffer[1]);
+		}
+		else
+		{
+			osDelayUntil(&PreviousWakeTime, 100);
+		}
+	}
+}
+static void led_ring_Thread(void const *argument)
+{
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		osDelayUntil(&PreviousWakeTime, 1000);
+		printf("led ring\r\n");
+	}
+}
+/**
+	* @brief  System Clock Configuration
+	*         The system Clock is configured as follow : 
+	*            System Clock source            = PLL (HSE)
+	*            SYSCLK(Hz)                     = 216000000
+	*            HCLK(Hz)                       = 216000000
+	*            AHB Prescaler                  = 1
+	*            APB1 Prescaler                 = 4
+	*            APB2 Prescaler                 = 2
+	*            HSE Frequency(Hz)              = 25000000
+	*            PLL_M                          = 25
+	*            PLL_N                          = 432
+	*            PLL_P                          = 2
+	*            PLL_Q                          = 9
+	*            VDD(V)                         = 3.3
+	*            Main regulator output voltage  = Scale1 mode
+	*            Flash Latency(WS)              = 7
+	* @param  None
+	* @retval None
+	*/
+void SystemClock_Config(void)
+{
+	RCC_ClkInitTypeDef RCC_ClkInitStruct;
+	RCC_OscInitTypeDef RCC_OscInitStruct;
+	HAL_StatusTypeDef ret = HAL_OK;
+
+	/* Enable HSE Oscillator and activate PLL with HSE as source */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+	RCC_OscInitStruct.PLL.PLLM = 25;
+	RCC_OscInitStruct.PLL.PLLN = 432;
+	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+	RCC_OscInitStruct.PLL.PLLQ = 9;
+	
+	ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
+	if(ret != HAL_OK)
+	{
+		while(1) { ; }
+	}
+	
+	/* Activate the OverDrive to reach the 216 MHz Frequency */  
+	ret = HAL_PWREx_EnableOverDrive();
+	if(ret != HAL_OK)
+	{
+		while(1) { ; }
+	}
+	
+	/* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers */
+	RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;  
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2; 
+	
+	ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
+	if(ret != HAL_OK)
+	{
+		while(1) { ; }
+	}  
+}
+
+
+/**
+	* @brief EXTI line detection callbacks
+	* @param GPIO_Pin: Specifies the pins connected EXTI line
+	* @retval None
+	*/
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == KEY_BUTTON_PIN)
+	{  
+		UserButtonStatus = 1;
+	}
+}
+
+/**
+	* @brief  This function is executed in case of error occurrence.
+	* @param  None
+	* @retval None
+	*/
+static void Error_Handler(void)
+{
+	/* Turn LED1 on */
+	BSP_LED_On(LED1);
+	while(1)
+	{
+		/* Error if LED1 is slowly blinking (1 sec. period) */
+		BSP_LED_Toggle(LED1); 
+		HAL_Delay(1000); 
+	}  
+}
+
+/**
+	* @brief  CPU L1-Cache enable.
+	* @param  None
+	* @retval None
+	*/
+static void CPU_CACHE_Enable(void)
+{
+	/* Enable I-Cache */
+	SCB_EnableICache();
+
+	/* Enable D-Cache */
+	SCB_EnableDCache();
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+	* @brief  Reports the name of the source file and the source line number
+	*         where the assert_param error has occurred.
+	* @param  file: pointer to the source file name
+	* @param  line: assert_param error line source number
+	* @retval None
+	*/
+void assert_failed(uint8_t* file, uint32_t line)
+{ 
+	/* User can add his own implementation to report the file name and line number,
+		 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+
+	/* Infinite loop */
+	while (1)
+	{
+	}
+}
+#endif
+
+/**
+	* @}
+	*/
+
+/**
+	* @}
+	*/
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
