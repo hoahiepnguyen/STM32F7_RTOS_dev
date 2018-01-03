@@ -53,7 +53,6 @@
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
-osThreadId i2c_cmd_ThreadId;
 osThreadId led_ring_ThreadId;
 osThreadId i2c_master_ThreadId;
 osThreadId i2c_slave_ThreadId;
@@ -70,40 +69,101 @@ osThreadId i2c_slave_ThreadId;
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* I2C handler declaration */
-I2C_HandleTypeDef I2cHandle;
+I2C_HandleTypeDef I2c1Handle;
+I2C_HandleTypeDef I2c2Handle;
 uint8_t aTxBuffer[] = " ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling**** ";
 uint8_t aRxBuffer[RXBUFFERSIZE];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
-static void i2c_cmd_Thread(void const *argument);
+static void i2c1_slave_init(void);
+static void i2c2_master_init(void);
 static void led_ring_Thread(void const *argument);
 static void i2c_master_Thread(void const *argument);
 static void i2c_slave_Thread(void const *argument);
 /* Private functions ---------------------------------------------------------*/
 
-void i2c_cmd_init(void)
+void i2c1_slave_init(void)
 {
 	/*##Configure the I2C peripheral ######################################*/
-	I2cHandle.Instance              = I2Cx;
-	I2cHandle.Init.Timing           = I2C_TIMING;
-	I2cHandle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
-	I2cHandle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	I2cHandle.Init.OwnAddress1      = 0x00;
-	I2cHandle.Init.OwnAddress2		= 0x00;
-	I2cHandle.Init.OwnAddress2Masks	= I2C_OA2_NOMASK;
-	I2cHandle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
-	I2cHandle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;  
+	I2c1Handle.Instance              = I2Cx_SLAVE;
+	I2c1Handle.Init.Timing           = I2C_TIMING;
+	I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+	I2c1Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+	I2c1Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+	I2c1Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+	I2c1Handle.Init.OwnAddress1      = STM32F7_ADDRESS;
 
-	if(HAL_I2C_Init(&I2cHandle) != HAL_OK)
+	if(HAL_I2C_Init(&I2c1Handle) != HAL_OK)
 	{
 		/* Initialization Error */
 		Error_Handler();
 	}
 
 	/* Enable the Analog I2C Filter */
-	HAL_I2CEx_ConfigAnalogFilter(&I2cHandle,I2C_ANALOGFILTER_ENABLE);
+	HAL_I2CEx_ConfigAnalogFilter(&I2c1Handle, I2C_ANALOGFILTER_ENABLE);
+}
+
+void i2c2_master_init(void)
+{
+	GPIO_InitTypeDef 	GPIO_InitStruct;
+	RCC_PeriphCLKInitTypeDef 	RCC_PeriphCLKInitStruct;
+
+	/*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
+	RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_MASTER;
+	RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_MASTER_CLKSOURCE_SYSCLK;
+	HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
+
+	/*##-2- Enable peripherals and GPIO Clocks #################################*/
+	/* Enable GPIO TX/RX clock */
+	I2Cx_MASTER_SDA_GPIO_CLK_ENABLE();
+	I2Cx_MASTER_SCL_GPIO_CLK_ENABLE();
+
+	/* Enable I2Cx clock */
+	I2Cx_MASTER_CLK_ENABLE();
+
+	/*##-3- Configure peripheral GPIO ##########################################*/
+	/** I2C2 GPIO configuration
+		PB10 ------> I2C2_SCL
+		PB11 ------> I2C2_SDA
+	*/
+	/* I2C SCL GPIO pin configuration  */
+	GPIO_InitStruct.Pin 		= I2Cx_MASTER_SCL_PIN;
+	GPIO_InitStruct.Mode 		= GPIO_MODE_AF_OD;
+	GPIO_InitStruct.Pull		= GPIO_PULLUP;
+	GPIO_InitStruct.Speed 		= GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Alternate 	= I2Cx_MASTER_SCL_SDA_AF;
+	HAL_GPIO_Init(I2Cx_MASTER_SCL_GPIO_PORT, &GPIO_InitStruct);
+
+	/* I2C SDA GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = I2Cx_MASTER_SDA_PIN;
+	GPIO_InitStruct.Alternate = I2Cx_MASTER_SCL_SDA_AF;
+	HAL_GPIO_Init(I2Cx_MASTER_SDA_GPIO_PORT, &GPIO_InitStruct);
+
+	/* NVIC for I2Cx */
+	HAL_NVIC_SetPriority(I2Cx_MASTER_ER_IRQn, 0, 1);
+	HAL_NVIC_EnableIRQ(I2Cx_MASTER_ER_IRQn);
+	HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 0, 2);
+	HAL_NVIC_EnableIRQ(I2Cx_MASTER_EV_IRQn);
+
+	/* Configure the I2C peripheral */
+	I2c2Handle.Instance 			 = I2Cx_MASTER;
+	I2c2Handle.Init.Timing 			 = I2C_TIMING;
+	I2c2Handle.Init.AddressingMode 	 = I2C_ADDRESSINGMODE_7BIT;
+	I2c2Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+	I2c2Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+	I2c2Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+	I2c2Handle.Init.OwnAddress1      = CYPRESS_ADDR;
+	I2c2Handle.Init.OwnAddress2      = STA321MP_ADDR;
+	if(HAL_I2C_Init(&I2c2Handle) != HAL_OK)
+	{
+		/* Initialization Error */
+		Error_Handler();
+	}
+
+	/* Enable the Analog I2C Filter */
+	HAL_I2CEx_ConfigAnalogFilter(&I2c2Handle, I2C_ANALOGFILTER_ENABLE);
 }
 /**
 	* @brief  Main program
@@ -123,20 +183,24 @@ int main(void)
 	/* Configure USER Button */
 	BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
 
+	/* Configure logs */
 	log_init();
-	i2c_cmd_init();
+
+	/* Configure I2C bus */
+//	i2c1_slave_init();
+	printf("Init Done\r\n");
+//	i2c2_master_init();
 
 	/* Threads definition */
-//	osThreadDef(i2c_cmd, i2c_cmd_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(i2c_master, i2c_master_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
-//	i2c_cmd_ThreadId = osThreadCreate(osThread(i2c_cmd), NULL);
-	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
-	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
-	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+//	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
+//	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+
 	/* Start scheduler */
 	osKernelStart();
 
@@ -145,31 +209,6 @@ int main(void)
 	for(;;);
 }
 
-
-/**
-	* @brief  Toggle LED1 thread
-	* @param  Thread not used
-	* @retval None
-	*/
-static void i2c_cmd_Thread(void const *argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{ 
-		if(HAL_I2C_Slave_Receive_DMA(&I2cHandle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
-		{
-			printf("%x\r\n", aRxBuffer[0]);
-			printf("%x\r\n", aRxBuffer[1]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
-
-	}
-}
 /**
 	* @brief  Toggle LED1 thread
 	* @param  Thread not used
@@ -185,31 +224,32 @@ static void i2c_master_Thread(void const *argument)
 
 	for(;;)
 	{
-		/* Wait for USER button press before starting the Communication */
-		while(BSP_PB_GetState(BUTTON_KEY) != 1)
-		{
+  		BSP_LED_On(LED1);
+		// /* Wait for USER button press before starting the Communication */
+		// while(BSP_PB_GetState(BUTTON_KEY) != 1)
+		// {
 
-		}
+		// }
 
-		/* wait for USER button release before starting the Communication */
-		while(BSP_PB_GetState(BUTTON_KEY) != 0)
-		{
-
-		}
+		// /* wait for USER button release before starting the Communication */
+		// while(BSP_PB_GetState(BUTTON_KEY) != 0)
+		// {
+		// }
 
 	 	/*## Start the transmission process #####################################*/  
 		/* While the I2C in reception process, user can transmit data through 
 		 "aTxBuffer" buffer */
-		while(HAL_I2C_Master_Transmit_DMA(&I2cHandle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
+		while(HAL_I2C_Master_Transmit_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
 		{
 		/* Error_Handler() function is called when Timeout error occurs.
 		   When Acknowledge failure occurs (Slave don't acknowledge it's address)
 		   Master restarts communication */
-			if (HAL_I2C_GetError(&I2cHandle) != HAL_I2C_ERROR_AF)
+			if (HAL_I2C_GetError(&I2c2Handle) != HAL_I2C_ERROR_AF)
 			{
 				Error_Handler();
 			}
 		}
+  		BSP_LED_Off(LED1);
 
 		/*## Wait for the end of the transfer ###################################*/  
 		/*  Before starting a new communication transfer, you need to check the current   
@@ -218,26 +258,26 @@ static void i2c_master_Thread(void const *argument)
 	      For simplicity reasons, this example is just waiting till the end of the 
 	      transfer, but application may perform other tasks while transfer operation
 	      is ongoing. */  
-		while (HAL_I2C_GetState(&I2cHandle) != HAL_I2C_STATE_READY)
+		while (HAL_I2C_GetState(&I2c2Handle) != HAL_I2C_STATE_READY)
 		{
 		}
-  		/* Wait for USER Button press before starting the Communication */
-  		while (BSP_PB_GetState(BUTTON_KEY) != 1)
-  		{
-  		}
+		// /* Wait for USER Button press before starting the Communication */
+		// while (BSP_PB_GetState(BUTTON_KEY) != 1)
+		// {
+		// }
 
-  		/* Wait for USER Button release before starting the Communication */
-  		while (BSP_PB_GetState(BUTTON_KEY) != 0)
-  		{
-  		}
-  
-  		/*## Put I2C peripheral in reception process ###########################*/  
-  		if (HAL_I2C_Master_Receive_DMA(&I2cHandle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
-  		{
-  			BSP_LED_On(LED1);
-  			printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
-  			printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
-  		}
+		// /* Wait for USER Button release before starting the Communication */
+		// while (BSP_PB_GetState(BUTTON_KEY) != 0)
+		// {
+		// }
+
+		/*## Put I2C peripheral in reception process ###########################*/  
+		if (HAL_I2C_Master_Receive_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+		{
+			BSP_LED_On(LED1);
+			printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
+			printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
+		}
 		else
 		{
 			osDelayUntil(&PreviousWakeTime, 100);
@@ -247,18 +287,19 @@ static void i2c_master_Thread(void const *argument)
 
 }
 
-staic void i2c_slave_Thread(void const *argument)
+/**
+	* @brief  Toggle LED1 thread
+	* @param  Thread not used
+	* @retval None
+	*/
+static void i2c_slave_Thread(void const *argument)
 {
 	(void) argument;
 	uint32_t PreviousWakeTime = osKernelSysTick();
 
 	for(;;)
 	{
-		while (HAL_I2C_GetState(&I2cHandle) != HAL_I2C_STATE_READY)
-		{
-		}
-
-		if(HAL_I2C_Slave_Receive_DMA(&I2cHandle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+		if(HAL_I2C_Slave_Receive_DMA(&I2c1Handle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
 		{
 			BSP_LED_On(LED1);
 			printf("%x\r\n", aRxBuffer[0]);
@@ -270,6 +311,7 @@ staic void i2c_slave_Thread(void const *argument)
 		}
 	}
 }
+
 static void led_ring_Thread(void const *argument)
 {
 	(void) argument;
@@ -329,14 +371,14 @@ void SystemClock_Config(void)
 	{
 		while(1) { ; }
 	}
-	
+
 	/* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers */
 	RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;  
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2; 
-	
+
 	ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
 	if(ret != HAL_OK)
 	{
