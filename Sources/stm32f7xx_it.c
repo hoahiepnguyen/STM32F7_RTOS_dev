@@ -53,6 +53,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* UART handler declared in "main.c" file */
 extern UART_HandleTypeDef UartHandle;
+extern UART_HandleTypeDef Uart6Handle;
 extern I2C_HandleTypeDef I2c1Handle;
 extern I2C_HandleTypeDef I2c2Handle;
 /* Private function prototypes -----------------------------------------------*/
@@ -170,6 +171,18 @@ void SysTick_Handler(void)
 /*  available peripheral interrupt handler's name please refer to the startup */
 /*  file (startup_stm32f7xx.s).                                               */
 /******************************************************************************/
+/**
+  * @brief  This function handles UART interrupt request.  
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data transmission     
+  */
+void USART6_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&Uart6Handle);
+}
+
 /**
   * @brief  This function handles UART interrupt request.  
   * @param  None

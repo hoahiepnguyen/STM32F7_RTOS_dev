@@ -56,7 +56,7 @@ __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
 osThreadId led_ring_ThreadId;
 osThreadId i2c_master_ThreadId;
 osThreadId i2c_slave_ThreadId;
-
+osThreadId uart6_ThreadId;
 #define STM32F7_ADDRESS			0xD0
 #define CYPRESS_ADDR			0x37
 #define STA321MP_ADDR			0x40
@@ -71,6 +71,11 @@ osThreadId i2c_slave_ThreadId;
 /* I2C handler declaration */
 I2C_HandleTypeDef I2c1Handle;
 I2C_HandleTypeDef I2c2Handle;
+
+/* UART handler declaration */
+UART_HandleTypeDef Uart6Handle;
+__IO ITStatus UartReady = RESET;
+
 uint8_t aTxBuffer[] = " ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling****  ****I2C_TwoBoards communication based on Polling**** ";
 uint8_t aRxBuffer[RXBUFFERSIZE];
 /* Private function prototypes -----------------------------------------------*/
@@ -79,9 +84,11 @@ static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
 static void i2c1_slave_init(void);
 static void i2c2_master_init(void);
+static void UART6_Init(void);
 static void led_ring_Thread(void const *argument);
 static void i2c_master_Thread(void const *argument);
 static void i2c_slave_Thread(void const *argument);
+static void uart6_Thread(void const * argument);
 /* Private functions ---------------------------------------------------------*/
 
 void i2c1_slave_init(void)
@@ -89,11 +96,12 @@ void i2c1_slave_init(void)
 	/*##Configure the I2C peripheral ######################################*/
 	I2c1Handle.Instance              = I2Cx_SLAVE;
 	I2c1Handle.Init.Timing           = I2C_TIMING;
-	I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+	I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_10BIT;
 	I2c1Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
 	I2c1Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
 	I2c1Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
 	I2c1Handle.Init.OwnAddress1      = STM32F7_ADDRESS;
+	I2c1Handle.Init.OwnAddress2      = 0xFF;
 
 	if(HAL_I2C_Init(&I2c1Handle) != HAL_OK)
 	{
@@ -165,6 +173,56 @@ void i2c2_master_init(void)
 	/* Enable the Analog I2C Filter */
 	HAL_I2CEx_ConfigAnalogFilter(&I2c2Handle, I2C_ANALOGFILTER_ENABLE);
 }
+
+void UART6_Init(void)
+{
+	GPIO_InitTypeDef	GPIO_InitStruct;
+
+	/** UART6 GPIO configuration
+		PC6 ------> UART6_TX
+		PC7 ------> UART6_RX
+	*/
+	/* Enable GPIO TX/RX clock */
+	__GPIOC_CLK_ENABLE();
+
+	/* Enable USARTx clock */
+	__USART6_CLK_ENABLE();
+
+	/* UART TX GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = GPIO_PIN_6;
+	GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Pull      = GPIO_PULLUP;
+	GPIO_InitStruct.Speed     = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Alternate = GPIO_AF8_USART6;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+	/* UART RX GPIO pin configuration  */
+	GPIO_InitStruct.Pin = GPIO_PIN_7;
+	GPIO_InitStruct.Alternate = GPIO_AF8_USART6;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+	
+	/* NVIC for USART */
+	HAL_NVIC_SetPriority(USART6_IRQn, 0, 2);
+	HAL_NVIC_EnableIRQ(USART6_IRQn);
+
+
+	Uart6Handle.Instance		= USART6;
+
+	Uart6Handle.Init.BaudRate	= 115200;
+	Uart6Handle.Init.WordLength	= UART_WORDLENGTH_8B;
+	Uart6Handle.Init.StopBits	= UART_STOPBITS_1;
+	Uart6Handle.Init.Parity		= UART_PARITY_NONE;
+    Uart6Handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
+    Uart6Handle.Init.Mode       = UART_MODE_TX_RX;
+    Uart6Handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+
+    if(HAL_UART_Init(&Uart6Handle) != HAL_OK)
+    {
+        // Error_Handler();
+    }
+
+}
+
 /**
 	* @brief  Main program
 	* @param  None
@@ -185,21 +243,22 @@ int main(void)
 
 	/* Configure logs */
 	log_init();
-
+//	UART6_Init();
 	/* Configure I2C bus */
-//	i2c1_slave_init();
-	printf("Init Done\r\n");
+	i2c1_slave_init();
 //	i2c2_master_init();
 
 	/* Threads definition */
+//	osThreadDef(uart6_test, uart6_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
+//	uart6_ThreadId = osThreadCreate(osThread(uart6_test), NULL);
 //	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
-//	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
-//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
 
 	/* Start scheduler */
 	osKernelStart();
@@ -323,6 +382,24 @@ static void led_ring_Thread(void const *argument)
 		printf("led ring\r\n");
 	}
 }
+
+static void uart6_Thread(void const * argument)
+{
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		if(HAL_UART_Receive_IT(&Uart6Handle, (uint8_t *)aRxBuffer, 10) == HAL_OK)
+		{
+			printf("%c\r\n", aRxBuffer);
+		}
+		else
+		{
+			osDelayUntil(&PreviousWakeTime, 100);
+		}
+	}
+}
 /**
 	* @brief  System Clock Configuration
 	*         The system Clock is configured as follow : 
@@ -386,6 +463,49 @@ void SystemClock_Config(void)
 	}  
 }
 
+
+
+/**
+  * @brief  Tx Transfer completed callback
+  * @param  UartHandle: UART handle. 
+  * @note   This example shows a simple way to report end of IT Tx transfer, and 
+  *         you can add your own implementation. 
+  * @retval None
+  */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+  /* Set transmission flag: transfer complete */
+  UartReady = SET;
+
+  
+}
+
+/**
+  * @brief  Rx Transfer completed callback
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
+  *         you can add your own implementation.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+  /* Set transmission flag: transfer complete */
+  UartReady = SET;
+  
+  
+}
+
+/**
+  * @brief  UART error callbacks
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report transfer error, and you can
+  *         add your own implementation.
+  * @retval None
+  */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
+{
+    // Error_Handler();
+}
 
 /**
 	* @brief EXTI line detection callbacks
