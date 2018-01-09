@@ -172,6 +172,30 @@ void SysTick_Handler(void)
 /*  file (startup_stm32f7xx.s).                                               */
 /******************************************************************************/
 /**
+  * @brief  This function handles DMA interrupt request.  
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data transmission     
+  */
+void USART6_DMA_RX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(UartHandle.hdmarx);
+}
+
+/**
+  * @brief  This function handles DMA interrupt request.
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data reception    
+  */
+void USART6_DMA_TX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(UartHandle.hdmatx);
+}
+
+/**
   * @brief  This function handles UART interrupt request.  
   * @param  None
   * @retval None
