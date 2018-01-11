@@ -40,7 +40,11 @@
 #include "main.h"
 #include "log.h"
 #include "cmsis_os.h"
+#include "stm32f7xx_it.h"
+
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 /** @addtogroup STM32F7xx_HAL_Examples
 	* @{
 	*/
@@ -51,43 +55,31 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define I2C_TIMING              0x40912732
+/* Definition I2C ADDRESS */
+#define STM32F7_ADDRESS         0xD0
+#define CYPRESS_ADDR            0x37
+#define STA321MP_ADDR           0x40
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
+__IO ITStatus UartReady = RESET;
 osThreadId led_ring_ThreadId;
 osThreadId i2c_master_ThreadId;
 osThreadId i2c_slave_ThreadId;
-osThreadId uart6_receiveId;
-osThreadId uart6_transmit_ThreadId;
-#define STM32F7_ADDRESS			0xD0
-#define CYPRESS_ADDR			0x37
-#define STA321MP_ADDR			0x40
-
-/* I2C TIMING Register define when I2C clock source is APB1 (SYSCLK/4) */
-/* I2C TIMING is calculated in case of the I2C Clock source is the APB1CLK = 50 MHz */
-/* This example use TIMING to 0x40912732 to reach 100 kHz speed (Rise time = 700 ns, Fall time = 100 ns) */
-#define I2C_TIMING				0x40912732
-
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* I2C handler declaration */
-I2C_HandleTypeDef I2c1Handle;
-I2C_HandleTypeDef I2c2Handle;
-
-/* UART handler declaration */
-UART_HandleTypeDef Uart6Handle;
-__IO ITStatus UartReady = RESET;
+osThreadId uart_receive_ThreadId;
+osThreadId uart_transmit_ThreadId;
 
 uint8_t aTxBuffer[] = "hello dark";
 uint8_t aRxBuffer[RXBUFFERSIZE];
+I2C_HandleTypeDef I2c1Handle;
+I2C_HandleTypeDef I2c2Handle;
+UART_HandleTypeDef Uart6Handle;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
-static void i2c1_slave_init(void);
-static void i2c2_master_init(void);
-static void UART6_Init(void);
 static void led_ring_Thread(void const *argument);
 static void i2c_master_Thread(void const *argument);
 static void i2c_slave_Thread(void const *argument);
@@ -95,183 +87,183 @@ static void uart_receive_Thread(void const * argument);
 static void uart_transmit_Thread(void const * argument);
 /* Private functions ---------------------------------------------------------*/
 
-void i2c1_slave_init(void)
+void UART6_Init(void)
 {
-	/*##Configure the I2C peripheral ######################################*/
-	I2c1Handle.Instance              = I2Cx_SLAVE;
-	I2c1Handle.Init.Timing           = I2C_TIMING;
-	I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_10BIT;
-	I2c1Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	I2c1Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
-	I2c1Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
-	I2c1Handle.Init.OwnAddress1      = STM32F7_ADDRESS;
-	I2c1Handle.Init.OwnAddress2      = 0xFF;
+    static DMA_HandleTypeDef hdma_tx;
+    static DMA_HandleTypeDef hdma_rx;
 
-	if(HAL_I2C_Init(&I2c1Handle) != HAL_OK)
-	{
-		/* Initialization Error */
-		Error_Handler();
-	}
+    GPIO_InitTypeDef    GPIO_InitStruct;
 
-	/* Enable the Analog I2C Filter */
-	HAL_I2CEx_ConfigAnalogFilter(&I2c1Handle, I2C_ANALOGFILTER_ENABLE);
-}
+    /** UART6 GPIO configuration
+        PC6 ------> UART6_TX
+        PC7 ------> UART6_RX
+    */
+    /* Enable GPIO TX/RX clock */
+    USART6_TX_GPIO_CLK_ENABLE();
+    USART6_RX_GPIO_CLK_ENABLE();
 
-void i2c2_master_init(void)
-{
-	GPIO_InitTypeDef 	GPIO_InitStruct;
-	RCC_PeriphCLKInitTypeDef 	RCC_PeriphCLKInitStruct;
+    /* Enable USARTx clock */
+    USART6_CLK_ENABLE();
 
-	/*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
-	RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_MASTER;
-	RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_MASTER_CLKSOURCE_SYSCLK;
-	HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
+    /* UART TX GPIO pin configuration  */
+    GPIO_InitStruct.Pin       = USART6_TX_PIN;
+    GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull      = GPIO_PULLUP;
+    GPIO_InitStruct.Speed     = GPIO_SPEED_HIGH;
+    GPIO_InitStruct.Alternate = USART6_TX_AF;
 
-	/*##-2- Enable peripherals and GPIO Clocks #################################*/
-	/* Enable GPIO TX/RX clock */
-	I2Cx_MASTER_SDA_GPIO_CLK_ENABLE();
-	I2Cx_MASTER_SCL_GPIO_CLK_ENABLE();
+    HAL_GPIO_Init(USART6_TX_GPIO_PORT, &GPIO_InitStruct);
 
-	/* Enable I2Cx clock */
-	I2Cx_MASTER_CLK_ENABLE();
+    /* UART RX GPIO pin configuration  */
+    GPIO_InitStruct.Pin = USART6_RX_PIN;
+    GPIO_InitStruct.Alternate = USART6_RX_AF;
 
-	/*##-3- Configure peripheral GPIO ##########################################*/
-	/** I2C2 GPIO configuration
-		PB10 ------> I2C2_SCL
-		PB11 ------> I2C2_SDA
-	*/
-	/* I2C SCL GPIO pin configuration  */
-	GPIO_InitStruct.Pin 		= I2Cx_MASTER_SCL_PIN;
-	GPIO_InitStruct.Mode 		= GPIO_MODE_AF_OD;
-	GPIO_InitStruct.Pull		= GPIO_PULLUP;
-	GPIO_InitStruct.Speed 		= GPIO_SPEED_HIGH;
-	GPIO_InitStruct.Alternate 	= I2Cx_MASTER_SCL_SDA_AF;
-	HAL_GPIO_Init(I2Cx_MASTER_SCL_GPIO_PORT, &GPIO_InitStruct);
-
-	/* I2C SDA GPIO pin configuration  */
-	GPIO_InitStruct.Pin       = I2Cx_MASTER_SDA_PIN;
-	GPIO_InitStruct.Alternate = I2Cx_MASTER_SCL_SDA_AF;
-	HAL_GPIO_Init(I2Cx_MASTER_SDA_GPIO_PORT, &GPIO_InitStruct);
-
-	/* NVIC for I2Cx */
-	HAL_NVIC_SetPriority(I2Cx_MASTER_ER_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(I2Cx_MASTER_ER_IRQn);
-	HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 0, 2);
-	HAL_NVIC_EnableIRQ(I2Cx_MASTER_EV_IRQn);
-
-	/* Configure the I2C peripheral */
-	I2c2Handle.Instance 			 = I2Cx_MASTER;
-	I2c2Handle.Init.Timing 			 = I2C_TIMING;
-	I2c2Handle.Init.AddressingMode 	 = I2C_ADDRESSINGMODE_7BIT;
-	I2c2Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	I2c2Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
-	I2c2Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
-	I2c2Handle.Init.OwnAddress1      = CYPRESS_ADDR;
-	I2c2Handle.Init.OwnAddress2      = STA321MP_ADDR;
-	if(HAL_I2C_Init(&I2c2Handle) != HAL_OK)
-	{
-		/* Initialization Error */
-		Error_Handler();
-	}
-
-	/* Enable the Analog I2C Filter */
-	HAL_I2CEx_ConfigAnalogFilter(&I2c2Handle, I2C_ANALOGFILTER_ENABLE);
-}
-
-void USART6_Init(void)
-{
-	static DMA_HandleTypeDef hdma_tx;
-	static DMA_HandleTypeDef hdma_rx;
-
-	GPIO_InitTypeDef	GPIO_InitStruct;
-
-	/** UART6 GPIO configuration
-		PC6 ------> UART6_TX
-		PC7 ------> UART6_RX
-	*/
-	/* Enable GPIO TX/RX clock */
-	USART6_TX_GPIO_CLK_ENABLE();
-	USART6_RX_GPIO_CLK_ENABLE();
-
-	/* Enable USARTx clock */
-	USART6_CLK_ENABLE();
-
-	/* UART TX GPIO pin configuration  */
-	GPIO_InitStruct.Pin       = USART6_TX_PIN;
-	GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-	GPIO_InitStruct.Pull      = GPIO_PULLUP;
-	GPIO_InitStruct.Speed     = GPIO_SPEED_HIGH;
-	GPIO_InitStruct.Alternate = USART6_TX_AF;
-
-	HAL_GPIO_Init(USART6_TX_GPIO_PORT, &GPIO_InitStruct);
-
-	/* UART RX GPIO pin configuration  */
-	GPIO_InitStruct.Pin = USART6_RX_PIN;
-	GPIO_InitStruct.Alternate = USART6_RX_AF;
-
-	HAL_GPIO_Init(USART6_RX_GPIO_PORT, &GPIO_InitStruct);
+    HAL_GPIO_Init(USART6_RX_GPIO_PORT, &GPIO_InitStruct);
 
 
-	/*##-3- Configure the DMA ##################################################*/
-	/* Configure the DMA handler for Transmission process */
-	hdma_tx.Instance                 = USART6_TX_DMA_STREAM;
-	hdma_tx.Init.Channel             = USART6_TX_DMA_CHANNEL;
-	hdma_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
-	hdma_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
-	hdma_tx.Init.MemInc              = DMA_MINC_ENABLE;
-	hdma_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-	hdma_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-	hdma_tx.Init.Mode                = DMA_NORMAL;
-	hdma_tx.Init.Priority            = DMA_PRIORITY_LOW;
+    /*##-3- Configure the DMA ##################################################*/
+    /* Configure the DMA handler for Transmission process */
+    hdma_tx.Instance                 = USART6_TX_DMA_STREAM;
+    hdma_tx.Init.Channel             = USART6_TX_DMA_CHANNEL;
+    hdma_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
+    hdma_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
+    hdma_tx.Init.MemInc              = DMA_MINC_ENABLE;
+    hdma_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
+    hdma_tx.Init.Mode                = DMA_NORMAL;
+    hdma_tx.Init.Priority            = DMA_PRIORITY_LOW;
 
-	HAL_DMA_Init(&hdma_tx);
+    HAL_DMA_Init(&hdma_tx);
 
-	/* Associate the initialized DMA handle to the UART handle */
-	__HAL_LINKDMA(&Uart6Handle, hdmatx, hdma_tx);
+    /* Associate the initialized DMA handle to the UART handle */
+    __HAL_LINKDMA(&Uart6Handle, hdmatx, hdma_tx);
 
-	/* Configure the DMA handler for reception process */
-	hdma_rx.Instance                 = USART6_RX_DMA_STREAM;
-	hdma_rx.Init.Channel             = USART6_RX_DMA_CHANNEL;
-	hdma_rx.Init.Direction           = DMA_PERIPH_TO_MEMORY;
-	hdma_rx.Init.PeriphInc           = DMA_PINC_DISABLE;
-	hdma_rx.Init.MemInc              = DMA_MINC_ENABLE;
-	hdma_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-	hdma_rx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-	hdma_rx.Init.Mode                = DMA_NORMAL;
-	hdma_rx.Init.Priority            = DMA_PRIORITY_HIGH;
+    /* Configure the DMA handler for reception process */
+    hdma_rx.Instance                 = USART6_RX_DMA_STREAM;
+    hdma_rx.Init.Channel             = USART6_RX_DMA_CHANNEL;
+    hdma_rx.Init.Direction           = DMA_PERIPH_TO_MEMORY;
+    hdma_rx.Init.PeriphInc           = DMA_PINC_DISABLE;
+    hdma_rx.Init.MemInc              = DMA_MINC_ENABLE;
+    hdma_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_rx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
+    hdma_rx.Init.Mode                = DMA_NORMAL;
+    hdma_rx.Init.Priority            = DMA_PRIORITY_HIGH;
 
-	HAL_DMA_Init(&hdma_rx);
+    HAL_DMA_Init(&hdma_rx);
 
-	/* Associate the initialized DMA handle to the the UART handle */
-	__HAL_LINKDMA(&Uart6Handle, hdmarx, hdma_rx);
-	  
-	/*##-4- Configure the NVIC for DMA #########################################*/
-	/* NVIC configuration for DMA transfer complete interrupt (USART6_TX) */
-	HAL_NVIC_SetPriority(USART6_DMA_TX_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(USART6_DMA_TX_IRQn);
+    /* Associate the initialized DMA handle to the the UART handle */
+    __HAL_LINKDMA(&Uart6Handle, hdmarx, hdma_rx);
+      
+    /*##-4- Configure the NVIC for DMA #########################################*/
+    /* NVIC configuration for DMA transfer complete interrupt (USART6_TX) */
+    HAL_NVIC_SetPriority(USART6_DMA_TX_IRQn, 0, 1);
+    HAL_NVIC_EnableIRQ(USART6_DMA_TX_IRQn);
     
-	/* NVIC configuration for DMA transfer complete interrupt (USART6_RX) */
-	HAL_NVIC_SetPriority(USART6_DMA_RX_IRQn, 0, 0);
-	HAL_NVIC_EnableIRQ(USART6_DMA_RX_IRQn);
+    /* NVIC configuration for DMA transfer complete interrupt (USART6_RX) */
+    HAL_NVIC_SetPriority(USART6_DMA_RX_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(USART6_DMA_RX_IRQn);
 
-	/* NVIC for USART */
-	HAL_NVIC_SetPriority(USART6_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(USART6_IRQn);
+    /* NVIC for USART */
+    HAL_NVIC_SetPriority(USART6_IRQn, 0, 1);
+    HAL_NVIC_EnableIRQ(USART6_IRQn);
 
-	Uart6Handle.Instance		= USART6;
-	Uart6Handle.Init.BaudRate	= 115200;
-	Uart6Handle.Init.WordLength	= UART_WORDLENGTH_8B;
-	Uart6Handle.Init.StopBits	= UART_STOPBITS_1;
-	Uart6Handle.Init.Parity		= UART_PARITY_NONE;
+    Uart6Handle.Instance        = USART6;
+    Uart6Handle.Init.BaudRate   = 115200;
+    Uart6Handle.Init.WordLength = UART_WORDLENGTH_8B;
+    Uart6Handle.Init.StopBits   = UART_STOPBITS_1;
+    Uart6Handle.Init.Parity     = UART_PARITY_NONE;
     Uart6Handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
     Uart6Handle.Init.Mode       = UART_MODE_TX_RX;
     Uart6Handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
 
     if(HAL_UART_Init(&Uart6Handle) != HAL_OK)
     {
-        // Error_Handler();
+        Error_Handler();
     }
 
+}
+
+void i2c1_slave_init(void)
+{
+    /*##Configure the I2C peripheral ######################################*/
+    I2c1Handle.Instance              = I2Cx_SLAVE;
+    I2c1Handle.Init.Timing           = I2C_TIMING;
+    I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_10BIT;
+    I2c1Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+    I2c1Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+    I2c1Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+    I2c1Handle.Init.OwnAddress1      = STM32F7_ADDRESS;
+    I2c1Handle.Init.OwnAddress2      = 0xFF;
+
+    if(HAL_I2C_Init(&I2c1Handle) != HAL_OK)
+    {
+        /* Initialization Error */
+        Error_Handler();
+    }
+
+    /* Enable the Analog I2C Filter */
+    HAL_I2CEx_ConfigAnalogFilter(&I2c1Handle, I2C_ANALOGFILTER_ENABLE);
+}
+
+void i2c2_master_init(void)
+{
+    GPIO_InitTypeDef    GPIO_InitStruct;
+    RCC_PeriphCLKInitTypeDef    RCC_PeriphCLKInitStruct;
+
+    /*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
+    RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_MASTER;
+    RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_MASTER_CLKSOURCE_SYSCLK;
+    HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
+
+    /*##-2- Enable peripherals and GPIO Clocks #################################*/
+    /* Enable GPIO TX/RX clock */
+    I2Cx_MASTER_SDA_GPIO_CLK_ENABLE();
+    I2Cx_MASTER_SCL_GPIO_CLK_ENABLE();
+
+    /* Enable I2Cx clock */
+    I2Cx_MASTER_CLK_ENABLE();
+
+    /*##-3- Configure peripheral GPIO ##########################################*/
+    /** I2C2 GPIO configuration
+        PB10 ------> I2C2_SCL
+        PB11 ------> I2C2_SDA
+    */
+    /* I2C SCL GPIO pin configuration  */
+    GPIO_InitStruct.Pin         = I2Cx_MASTER_SCL_PIN;
+    GPIO_InitStruct.Mode        = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Pull        = GPIO_PULLUP;
+    GPIO_InitStruct.Speed       = GPIO_SPEED_HIGH;
+    GPIO_InitStruct.Alternate   = I2Cx_MASTER_SCL_SDA_AF;
+    HAL_GPIO_Init(I2Cx_MASTER_SCL_GPIO_PORT, &GPIO_InitStruct);
+
+    /* I2C SDA GPIO pin configuration  */
+    GPIO_InitStruct.Pin       = I2Cx_MASTER_SDA_PIN;
+    GPIO_InitStruct.Alternate = I2Cx_MASTER_SCL_SDA_AF;
+    HAL_GPIO_Init(I2Cx_MASTER_SDA_GPIO_PORT, &GPIO_InitStruct);
+
+    /* NVIC for I2Cx */
+    HAL_NVIC_SetPriority(I2Cx_MASTER_ER_IRQn, 0, 1);
+    HAL_NVIC_EnableIRQ(I2Cx_MASTER_ER_IRQn);
+    HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 0, 2);
+    HAL_NVIC_EnableIRQ(I2Cx_MASTER_EV_IRQn);
+
+    /* Configure the I2C peripheral */
+    I2c2Handle.Instance              = I2Cx_MASTER;
+    I2c2Handle.Init.Timing           = I2C_TIMING;
+    I2c2Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+    I2c2Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+    I2c2Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+    I2c2Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+    I2c2Handle.Init.OwnAddress1      = CYPRESS_ADDR;
+    I2c2Handle.Init.OwnAddress2      = STA321MP_ADDR;
+    if(HAL_I2C_Init(&I2c2Handle) != HAL_OK)
+    {
+        /* Initialization Error */
+        Error_Handler();
+    }
+
+    /* Enable the Analog I2C Filter */
+    HAL_I2CEx_ConfigAnalogFilter(&I2c2Handle, I2C_ANALOGFILTER_ENABLE);
 }
 
 /**
@@ -290,33 +282,32 @@ int main(void)
 	/* Configure LED1 */
 	BSP_LED_Init(LED1);
 	/* Configure USER Button */
-	BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_EXTI);
+//	BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_EXTI);
 
 	/* Configure logs */
 	log_init();
 	/* Congigure USART6 */
-	USART6_Init();
+	UART6_Init();
 
 	/* Configure I2C bus */
 //	i2c1_slave_init();
 //	i2c2_master_init();
 
 	/* Threads definition */
-//	osThreadDef(uart6_receive_test, uart6_receive, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-
 //	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(uart6_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
-//	uart6_receiveId = osThreadCreate(osThread(uart6_receive_test), NULL);
 
 //	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
 //	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
-	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
-	uart6_transmit_ThreadId = osThreadCreate(osThread(uart6_transmit), NULL);
-
+//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+//	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
+	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
+	printf("Init Done \r\n");
 	/* Start scheduler */
 	osKernelStart();
 
@@ -326,106 +317,106 @@ int main(void)
 }
 
 /**
-	* @brief  Toggle LED1 thread
-	* @param  Thread not used
-	* @retval None
-	*/
+    * @brief  Toggle LED1 thread
+    * @param  Thread not used
+    * @retval None
+    */
 static void i2c_master_Thread(void const *argument)
 {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
+    (void) argument;
+    uint32_t PreviousWakeTime = osKernelSysTick();
 
-	aTxBuffer[0] = 0x00; //address reg
-	aTxBuffer[1] = 0x01; //data
+    aTxBuffer[0] = 0x00; //address reg
+    aTxBuffer[1] = 0x01; //data
 
-	for(;;)
-	{
-  		BSP_LED_On(LED1);
-		// /* Wait for USER button press before starting the Communication */
-		// while(BSP_PB_GetState(BUTTON_KEY) != 1)
-		// {
+    for(;;)
+    {
+        BSP_LED_On(LED1);
+        // /* Wait for USER button press before starting the Communication */
+        // while(BSP_PB_GetState(BUTTON_KEY) != 1)
+        // {
 
-		// }
+        // }
 
-		// /* wait for USER button release before starting the Communication */
-		// while(BSP_PB_GetState(BUTTON_KEY) != 0)
-		// {
-		// }
+        // /* wait for USER button release before starting the Communication */
+        // while(BSP_PB_GetState(BUTTON_KEY) != 0)
+        // {
+        // }
 
-	 	/*## Start the transmission process #####################################*/  
-		/* While the I2C in reception process, user can transmit data through 
-		 "aTxBuffer" buffer */
-		while(HAL_I2C_Master_Transmit_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
-		{
-		/* Error_Handler() function is called when Timeout error occurs.
-		   When Acknowledge failure occurs (Slave don't acknowledge it's address)
-		   Master restarts communication */
-			if (HAL_I2C_GetError(&I2c2Handle) != HAL_I2C_ERROR_AF)
-			{
-				Error_Handler();
-			}
-		}
-  		BSP_LED_Off(LED1);
+        /*## Start the transmission process #####################################*/  
+        /* While the I2C in reception process, user can transmit data through 
+         "aTxBuffer" buffer */
+        while(HAL_I2C_Master_Transmit_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
+        {
+        /* Error_Handler() function is called when Timeout error occurs.
+           When Acknowledge failure occurs (Slave don't acknowledge it's address)
+           Master restarts communication */
+            if (HAL_I2C_GetError(&I2c2Handle) != HAL_I2C_ERROR_AF)
+            {
+                Error_Handler();
+            }
+        }
+        BSP_LED_Off(LED1);
 
-		/*## Wait for the end of the transfer ###################################*/  
-		/*  Before starting a new communication transfer, you need to check the current   
-	      state of the peripheral; if it’s busy you need to wait for the end of current
-	      transfer before starting a new one.
-	      For simplicity reasons, this example is just waiting till the end of the 
-	      transfer, but application may perform other tasks while transfer operation
-	      is ongoing. */  
-		while (HAL_I2C_GetState(&I2c2Handle) != HAL_I2C_STATE_READY)
-		{
-		}
-		// /* Wait for USER Button press before starting the Communication */
-		// while (BSP_PB_GetState(BUTTON_KEY) != 1)
-		// {
-		// }
+        /*## Wait for the end of the transfer ###################################*/  
+        /*  Before starting a new communication transfer, you need to check the current   
+          state of the peripheral; if it’s busy you need to wait for the end of current
+          transfer before starting a new one.
+          For simplicity reasons, this example is just waiting till the end of the 
+          transfer, but application may perform other tasks while transfer operation
+          is ongoing. */  
+        while (HAL_I2C_GetState(&I2c2Handle) != HAL_I2C_STATE_READY)
+        {
+        }
+        // /* Wait for USER Button press before starting the Communication */
+        // while (BSP_PB_GetState(BUTTON_KEY) != 1)
+        // {
+        // }
 
-		// /* Wait for USER Button release before starting the Communication */
-		// while (BSP_PB_GetState(BUTTON_KEY) != 0)
-		// {
-		// }
+        // /* Wait for USER Button release before starting the Communication */
+        // while (BSP_PB_GetState(BUTTON_KEY) != 0)
+        // {
+        // }
 
-		/*## Put I2C peripheral in reception process ###########################*/  
-		if (HAL_I2C_Master_Receive_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
-		{
-			BSP_LED_On(LED1);
-			printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
-			printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
+        /*## Put I2C peripheral in reception process ###########################*/  
+        if (HAL_I2C_Master_Receive_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+        {
+            BSP_LED_On(LED1);
+            printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
+            printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
+        }
+        else
+        {
+            osDelayUntil(&PreviousWakeTime, 100);
+        }
 
-	}
+    }
 
 }
 
 /**
-	* @brief  Toggle LED1 thread
-	* @param  Thread not used
-	* @retval None
-	*/
+    * @brief  Toggle LED1 thread
+    * @param  Thread not used
+    * @retval None
+    */
 static void i2c_slave_Thread(void const *argument)
 {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
+    (void) argument;
+    uint32_t PreviousWakeTime = osKernelSysTick();
 
-	for(;;)
-	{
-		if(HAL_I2C_Slave_Receive_DMA(&I2c1Handle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
-		{
-			BSP_LED_On(LED1);
-			printf("%x\r\n", aRxBuffer[0]);
-			printf("%x\r\n", aRxBuffer[1]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
-	}
+    for(;;)
+    {
+        if(HAL_I2C_Slave_Receive_DMA(&I2c1Handle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+        {
+            BSP_LED_On(LED1);
+            printf("%x\r\n", aRxBuffer[0]);
+            printf("%x\r\n", aRxBuffer[1]);
+        }
+        else
+        {
+            osDelayUntil(&PreviousWakeTime, 100);
+        }
+    }
 }
 
 static void led_ring_Thread(void const *argument)
@@ -435,12 +426,8 @@ static void led_ring_Thread(void const *argument)
 
 	for(;;)
 	{
-		osDelayUntil(&PreviousWakeTime, 100);
-
-      /* Toggle LED1*/
-        printf("Hello, Dark! --\r\n");
-        BSP_LED_Toggle(LED1);
-
+		osDelayUntil(&PreviousWakeTime, 1000);
+		printf("led ring\r\n");
 	}
 }
 
@@ -448,17 +435,44 @@ static void uart_receive_Thread(void const * argument)
 {
 	(void) argument;
 	uint32_t PreviousWakeTime = osKernelSysTick();
+	int i;
 
 	for(;;)
 	{
-		if(HAL_UART_Receive_IT(&Uart6Handle, (uint8_t *)aRxBuffer, RXBUFFERSIZE) == HAL_OK)
+        /* Clear buffer before receiving */
+        for(i=0; i<4; i++)
+        {
+          aRxBuffer[i] = 0;
+        }
+		/* Reset transmission flag */
+    	UartReady = RESET;
+
+  		if(HAL_UART_Receive_IT(&Uart6Handle, (uint8_t *)aRxBuffer, 4) != HAL_OK)
+  		{
+			Error_Handler();
+        }
+		while (UartReady != SET)
 		{
-			printf("%d\r\n", aRxBuffer[0]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
+     	}
+     	if(aRxBuffer[0] == 66)
+     	{
+			printf("receive 'B' string\r\n");
+     	}
+     	if(aRxBuffer[1] == 76)
+     	{
+			printf("receive 'L' string\r\n");
+     	}
+     	if(aRxBuffer[2] == 48)
+     	{
+			printf("receive '0' string\r\n");
+     	}
+     	if(aRxBuffer[3] == 49)
+     	{
+			printf("receive '1' string\r\n");
+
+     	}
+     	printf("\r\n");
+		osDelayUntil(&PreviousWakeTime, 100);
 	}
 }
 
@@ -466,6 +480,9 @@ static void uart_transmit_Thread(void const * argument)
 {
 	(void) argument;
 	uint32_t PreviousWakeTime = osKernelSysTick();
+
+    /* Reset transmission flag */
+    UartReady = RESET;
 
 	if(HAL_UART_Transmit_IT(&Uart6Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
 	{
@@ -475,10 +492,6 @@ static void uart_transmit_Thread(void const * argument)
 	while (UartReady != SET)
 	{
     }
-
-    /* Reset transmission flag */
-    UartReady = RESET;
-
 	for(;;)
 	{
 		osDelayUntil(&PreviousWakeTime, 1000);
@@ -547,7 +560,18 @@ void SystemClock_Config(void)
 	}  
 }
 
-
+/**
+	* @brief EXTI line detection callbacks
+	* @param GPIO_Pin: Specifies the pins connected EXTI line
+	* @retval None
+	*/
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == KEY_BUTTON_PIN)
+	{  
+		UserButtonStatus = 1;
+	}
+}
 
 /**
   * @brief  Tx Transfer completed callback
@@ -556,7 +580,7 @@ void SystemClock_Config(void)
   *         you can add your own implementation. 
   * @retval None
   */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *Uart6Handle)
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
   /* Set transmission flag: transfer complete */
   UartReady = SET;
@@ -571,11 +595,11 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *Uart6Handle)
   *         you can add your own implementation.
   * @retval None
   */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *Uart6Handle)
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
-  /* Set transmission flag: transfer complete */
-  UartReady = SET;
-  
+  	/* Set transmission flag: transfer complete */
+  	UartReady = SET;
+//	printf("run here!!!\r\n");
   
 }
 
@@ -586,23 +610,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *Uart6Handle)
   *         add your own implementation.
   * @retval None
   */
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *Uart6Handle)
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
 {
-	Error_Handler();
+    Error_Handler();
 }
 
-/**
-	* @brief EXTI line detection callbacks
-	* @param GPIO_Pin: Specifies the pins connected EXTI line
-	* @retval None
-	*/
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if(GPIO_Pin == KEY_BUTTON_PIN)
-	{  
-		UserButtonStatus = 1;
-	}
-}
+
 
 /**
 	* @brief  This function is executed in case of error occurrence.
