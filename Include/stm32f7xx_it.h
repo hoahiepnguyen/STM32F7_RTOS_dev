@@ -63,6 +63,12 @@ void USARTx_IRQHandler(void);
 void USART6_IRQHandler(void);
 void USART6_DMA_TX_IRQHandler(void);
 void USART6_DMA_RX_IRQHandler(void);
+void I2Cx_SLAVE_DMA_RX_IRQHandler(void);
+void I2Cx_SLAVE_DMA_TX_IRQHandler(void);
+void I2Cx_SLAVE_EV_IRQHandler(void);
+void I2Cx_SLAVE_ER_IRQHandler(void);
+void I2Cx_MASTER_EV_IRQHandler(void);
+void I2Cx_MASTER_ER_IRQHandler(void);
 
 #ifdef __cplusplus
 }

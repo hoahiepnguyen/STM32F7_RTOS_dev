@@ -243,10 +243,10 @@ void EXTI15_10_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA Channel 
   *         used for I2C data transmission     
   */
-// void I2Cx_SLAVE_DMA_RX_IRQHandler(void)
-// {
-//   HAL_DMA_IRQHandler(I2c1Handle.hdmarx);
-// }
+void I2Cx_SLAVE_DMA_RX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(I2c1Handle.hdmarx);
+}
 
 /**
   * @brief  This function handles DMA interrupt request.
@@ -255,20 +255,20 @@ void EXTI15_10_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA Channel 
   *         used for I2C data reception    
   */
-// void I2Cx_SLAVE_DMA_TX_IRQHandler(void)
-// {
-//   HAL_DMA_IRQHandler(I2c1Handle.hdmatx);
-// }
+void I2Cx_SLAVE_DMA_TX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(I2c1Handle.hdmatx);
+}
 /**
   * @brief  This function handles I2C event interrupt request.
   * @param  None
   * @retval None
   * @Note   This function is redefined in "main.h" and related to I2C data transmission
   */
-// void I2Cx_SLAVE_EV_IRQHandler(void)
-// {
-//   HAL_I2C_EV_IRQHandler(&I2c1Handle);
-// }
+void I2Cx_SLAVE_EV_IRQHandler(void)
+{
+  HAL_I2C_EV_IRQHandler(&I2c1Handle);
+}
 
 /**
   * @brief  This function handles I2C error interrupt request.
@@ -276,10 +276,10 @@ void EXTI15_10_IRQHandler(void)
   * @retval None
   * @Note   This function is redefined in "main.h" and related to I2C error
   */
-// void I2Cx_SLAVE_ER_IRQHandler(void)
-// {
-//   HAL_I2C_ER_IRQHandler(&I2c1Handle);
-// }
+void I2Cx_SLAVE_ER_IRQHandler(void)
+{
+  HAL_I2C_ER_IRQHandler(&I2c1Handle);
+}
 
 /**
   * @brief  This function handles I2C event interrupt request.
@@ -287,10 +287,10 @@ void EXTI15_10_IRQHandler(void)
   * @retval None
   * @Note   This function is redefined in "main.h" and related to I2C data transmission
   */
-// void I2Cx_MASTER_EV_IRQHandler(void)
-// {
-//   HAL_I2C_EV_IRQHandler(&I2c2Handle);
-// }
+void I2Cx_MASTER_EV_IRQHandler(void)
+{
+  HAL_I2C_EV_IRQHandler(&I2c2Handle);
+}
 
 /**
   * @brief  This function handles I2C error interrupt request.
@@ -298,10 +298,10 @@ void EXTI15_10_IRQHandler(void)
   * @retval None
   * @Note   This function is redefined in "main.h" and related to I2C error
   */
-// void I2Cx_MASTER_ER_IRQHandler(void)
-// {
-//   HAL_I2C_ER_IRQHandler(&I2c2Handle);
-// }
+void I2Cx_MASTER_ER_IRQHandler(void)
+{
+  HAL_I2C_ER_IRQHandler(&I2c2Handle);
+}
 
 /**
   * @}

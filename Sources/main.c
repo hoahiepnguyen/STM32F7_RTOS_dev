@@ -617,7 +617,6 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
   */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
-	printf("Rx here\r\n");
 	/* Set transmission flag: transfer complete */
 	Uart6_RxReady = SET;
 }
@@ -634,6 +633,62 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
 	Error_Handler();
 }
 
+/**
+  * @brief  Tx Transfer completed callback.
+  * @param  I2cHandle: I2C handle. 
+  * @note   This example shows a simple way to report end of DMA Tx transfer, and 
+  *         you can add your own implementation. 
+  * @retval None
+  */
+void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *I2cHandle)
+{
+  /* Toggle LED1: Transfer in transmission process is correct */
+  BSP_LED_Toggle(LED1);
+}
+
+void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *I2cHandle)
+{
+  /* Toggle LED1: Transfer in transmission process is correct */
+  BSP_LED_Toggle(LED1);
+}
+
+/**
+  * @brief  Rx Transfer completed callback.
+  * @param  I2cHandle: I2C handle
+  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
+  *         you can add your own implementation.
+  * @retval None
+  */
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *I2cHandle)
+{
+  /* Toggle LED1: Transfer in reception process is correct */
+  BSP_LED_Toggle(LED1);
+}
+
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *I2cHandle)
+{
+  /* Toggle LED1: Transfer in reception process is correct */
+  BSP_LED_Toggle(LED1);
+}
+
+/**
+  * @brief  I2C error callbacks.
+  * @param  I2cHandle: I2C handle
+  * @note   This example shows a simple way to report transfer error, and you can
+  *         add your own implementation.
+  * @retval None
+  */
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *I2cHandle)
+{
+  /** Error_Handler() function is called when error occurs.
+    * 1- When Slave don't acknowledge it's address, Master restarts communication.
+    * 2- When Master don't acknowledge the last data transferred, Slave don't care in this example.
+    */
+  if (HAL_I2C_GetError(I2cHandle) != HAL_I2C_ERROR_AF)
+  {
+    Error_Handler();
+  }
+}
 
 /**
 	* @brief  This function is executed in case of error occurrence.
