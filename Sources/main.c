@@ -41,7 +41,6 @@
 #include "log.h"
 #include "cmsis_os.h"
 #include "stm32f7xx_it.h"
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,16 +59,18 @@
 #define STM32F7_ADDRESS         0xD0
 #define CYPRESS_ADDR            0x37
 #define STA321MP_ADDR           0x40
-/* Private macro -------------------------------------------------------------*/
+
 /* Private variables ---------------------------------------------------------*/
 __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
 __IO ITStatus Uart6_TxReady = RESET;
 __IO ITStatus Uart6_RxReady = RESET;
+
 osThreadId led_ring_ThreadId;
 osThreadId i2c_master_ThreadId;
 osThreadId i2c_slave_ThreadId;
 osThreadId uart_receive_ThreadId;
 osThreadId uart_transmit_ThreadId;
+osThreadId pwm_tim2_ThreadId;
 
 uint8_t aTxBuffer[] = "hey Dark";
 uint8_t aRxBuffer[RXBUFFERSIZE];
@@ -86,6 +87,16 @@ static void i2c_master_Thread(void const *argument);
 static void i2c_slave_Thread(void const *argument);
 static void uart_receive_Thread(void const * argument);
 static void uart_transmit_Thread(void const * argument);
+
+void CircularRing_Task(void);
+void HeartBeat_Task(void);
+void AllColors_Task(void);
+void ColorWheel_Task(void);
+void PatternMove_Task(void);
+void FullEmpty_Task(void);
+void AlternateColors_Task(void);
+
+
 /* Private functions ---------------------------------------------------------*/
 
 void UART6_Init(void)
@@ -293,31 +304,64 @@ int main(void)
 	/* Congigure USART6 */
 	UART6_Init();
 
+	/* Send hello message through uart */
+	printf("Starting...\r\n");
+//	ws281x_init();
+
+//	setLEDcolor(3, 255, 0 , 0);
+//	ws281x_update();
+
 	/* Configure I2C bus */
 	// i2c1_slave_init();
-	i2c2_master_init();
+	//i2c2_master_init();
 
 	/* Threads definition */
 //	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
-
 //	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
 //	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
 //	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
-	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
+//	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
 	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
-	printf("Init Done \r\n");
 	/* Start scheduler */
 	osKernelStart();
 
 	/* We should never
 	 get here as control is now taken by the scheduler */
 	for(;;);
+}
+
+void CircularRing_Task(void) {
+	stripEffect_CircularRing(50, 0, 0, 20);
+}
+
+void HeartBeat_Task(void) {
+	stripEffect_HeartBeat(700, 64, 0, 16);
+}
+
+void AllColors_Task(void) {
+	stripEffect_AllColors(10);
+}
+
+void ColorWheel_Task(void) {
+	stripEffect_ColorWheel(50);
+}
+
+void PatternMove_Task(void) {
+	stripEffect_PatternMove(50, 2, 10, 10, 10);
+}
+
+void FullEmpty_Task(void) {
+	stripEffect_FullEmpty(50, 20, 20, 20);
+}
+
+void AlternateColors_Task(void) {
+	stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
 }
 
 /**
@@ -441,6 +485,7 @@ static void uart_receive_Thread(void const * argument)
 	uint32_t PreviousWakeTime = osKernelSysTick();
 	int i;
 
+	printf("run here\r\n");
 	for(;;)
 	{
 		/* Clear buffer before receiving */
@@ -451,13 +496,17 @@ static void uart_receive_Thread(void const * argument)
 		/* Reset transmission flag */
 		Uart6_RxReady = RESET;
 
-		if(HAL_UART_Receive_DMA(&Uart6Handle, (uint8_t *)aRxBuffer, 5) != HAL_OK)
+		if(HAL_UART_Receive_DMA(&Uart6Handle, (uint8_t *)aRxBuffer, 4) != HAL_OK)
 		{
 			Error_Handler();
 		}
-
+		// if(Uart6_Receive_DMA((uint8_t *)aRxBuffer, 4) < 0)
+		// {
+		// 	Error_Handler();
+		//}
 		while (Uart6_RxReady != SET)
 		{
+//			printf("wait here\r\n");
 		}
 		if(aRxBuffer[0] == 66)
 		{
@@ -476,13 +525,13 @@ static void uart_receive_Thread(void const * argument)
 			printf("receive '1' string\r\n");
 
 		}
-		/* Keyword "N" */
-		if(aRxBuffer[4] == 78)
-		{
-			/* Set value to 1 for sending to Beaglebone*/
-			UserButtonStatus = 1;
-		}
-		printf("\r\n");
+		// /* Keyword "N" */
+		// if(aRxBuffer[4] == 78)
+		// {
+		// 	 Set value to 1 for sending to Beaglebone
+		// 	UserButtonStatus = 1;
+		// }
+		printf("done\r\n");
 		osDelayUntil(&PreviousWakeTime, 1000);
 	}
 }
@@ -505,10 +554,10 @@ static void uart_transmit_Thread(void const * argument)
 		/* Reset transmission flag */
 		Uart6_TxReady = RESET;
 
-		if(HAL_UART_Transmit_DMA(&Uart6Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
-		{
-			Error_Handler();
-		}
+		// if(HAL_UART_Transmit_DMA(&Uart6Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
+		// {
+		// 	Error_Handler();
+		// }
 
 		while (Uart6_TxReady != SET)
 		{
@@ -595,43 +644,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	}
 }
 
-/**
-  * @brief  Tx Transfer completed callback
-  * @param  UartHandle: UART handle. 
-  * @note   This example shows a simple way to report end of IT Tx transfer, and 
-  *         you can add your own implementation. 
-  * @retval None
-  */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-	/* Set transmission flag: transfer complete */
-	Uart6_TxReady = SET;
-}
-
-/**
-  * @brief  Rx Transfer completed callback
-  * @param  UartHandle: UART handle
-  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
-  *         you can add your own implementation.
-  * @retval None
-  */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-	/* Set transmission flag: transfer complete */
-	Uart6_RxReady = SET;
-}
-
-/**
-  * @brief  UART error callbacks
-  * @param  UartHandle: UART handle
-  * @note   This example shows a simple way to report transfer error, and you can
-  *         add your own implementation.
-  * @retval None
-  */
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
-{
-	Error_Handler();
-}
 
 /**
   * @brief  Tx Transfer completed callback.
@@ -690,6 +702,48 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *I2cHandle)
   }
 }
 
+/**
+  * @brief  Tx Transfer completed callback
+  * @param  UartHandle: UART handle. 
+  * @note   This example shows a simple way to report end of DMA Tx transfer, and 
+  *         you can add your own implementation. 
+  * @retval None
+  */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+  /* Set transmission flag: trasfer complete*/
+  Uart6_TxReady = SET;
+
+  
+}
+
+/**
+  * @brief  Rx Transfer completed callback
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
+  *         you can add your own implementation.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+  /* Set transmission flag: trasfer complete*/
+  Uart6_RxReady = SET;
+  printf(" run here Txcbufer\r\n");
+
+  
+}
+
+/**
+  * @brief  UART error callbacks
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report transfer error, and you can
+  *         add your own implementation.
+  * @retval None
+  */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
+{
+    Error_Handler();
+}
 /**
 	* @brief  This function is executed in case of error occurrence.
 	* @param  None

@@ -40,6 +40,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f7xx_hal.h"
 #include "stm32746g_discovery.h"
+#include "ws281x.h"
+#include "stripEffects.h"
+//#include "uart.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* User can use this section to tailor USARTx/UARTx instance used and associated 

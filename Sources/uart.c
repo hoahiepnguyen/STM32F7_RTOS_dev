@@ -1,6 +1,9 @@
 #include "main.h"
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+__IO ITStatus Uart6_TxReady = RESET;
+__IO ITStatus Uart6_RxReady = RESET;
+
 /* UART handler declaration */
 UART_HandleTypeDef Uart6Handle;
 
@@ -96,10 +99,111 @@ void UART6_Init(void)
     Uart6Handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
     Uart6Handle.Init.Mode       = UART_MODE_TX_RX;
     Uart6Handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    HAL_UART_Init(&Uart6Handle);
 
-    if(HAL_UART_Init(&Uart6Handle) != HAL_OK)
+}
+
+int Uart6_Transmit_DMA(uint8_t *Txbuffer, uint8_t size)
+{
+    if(HAL_UART_Transmit_DMA(&Uart6Handle, Txbuffer, size) != HAL_OK)
     {
-        Error_Handler();
+        return -1;
     }
 
+    return 0;
+}
+
+int Uart6_Receive_DMA(uint8_t *RxBuff, uint8_t size)
+{
+    Uart6_RxReady = RESET;
+
+    if(HAL_UART_Receive_DMA(&Uart6Handle, RxBuff, size) != HAL_OK)
+    {
+    printf("run here Rece \r\n");
+        return -1;
+    }
+
+    while (Uart6_RxReady != SET)
+    {
+    //     printf("wait here\r\n");
+    }
+    return 0;
+}
+
+
+/**
+  * @brief  This function handles UART interrupt request.  
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data transmission     
+  */
+void USART6_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&Uart6Handle);
+  printf("run here hiep \r\n");
+}
+
+/**
+  * @brief  This function handles DMA interrupt request.  
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data transmission     
+  */
+void USART6_DMA_RX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(Uart6Handle.hdmarx);
+}
+
+/**
+  * @brief  Tx Transfer completed callback
+  * @param  UartHandle: UART handle. 
+  * @note   This example shows a simple way to report end of IT Tx transfer, and 
+  *         you can add your own implementation. 
+  * @retval None
+  */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+    /* Set transmission flag: transfer complete */
+    Uart6_TxReady = SET;
+}
+
+/**
+  * @brief  Rx Transfer completed callback
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
+  *         you can add your own implementation.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+    /* Set transmission flag: transfer complete */
+    Uart6_RxReady = SET;
+    printf("run here Rxbuff \r\n");
+
+}
+
+/**
+  * @brief  UART error callbacks
+  * @param  UartHandle: UART handle
+  * @note   This example shows a simple way to report transfer error, and you can
+  *         add your own implementation.
+  * @retval None
+  */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
+{
+//    Error_Handler();
+}
+
+/**
+  * @brief  This function handles DMA interrupt request.
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to DMA  
+  *         used for USART data reception    
+  */
+void USART6_DMA_TX_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(Uart6Handle.hdmatx);
 }
