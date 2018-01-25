@@ -325,15 +325,15 @@ int main(void)
 	i2c2_master_init();
 
 	/* Create threads */
-	osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, 1024);
+	osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
-	osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, 64);
-	osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, 64);
-	osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, 64);
-	osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, 64);
-	osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, 64);
-	osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, 64);
-	osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, 64);
+	osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
 	xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
 	xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
