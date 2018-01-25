@@ -407,81 +407,35 @@ static void led_control_Thread(void const * argument) {
 		osThreadResume(xAlternateColorsHandler);
 		osDelay(TASK_INTERVAL);
 		osThreadSuspend(xAlternateColorsHandler);
-
-//		osDelayUntil(&PreviousWakeTime, 1000);
 	}
 }
 
 static void CircularRing_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_CircularRing(50, 0, 0, 20);
-	}
-
+	stripEffect_CircularRing(50, 0, 0, 20);
 }
 
 static void HeartBeat_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_HeartBeat(700, 64, 0, 16);
-	}
-
+	stripEffect_HeartBeat(700, 64, 0, 16);
 }
 
 static void AllColors_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_AllColors(10);
-	}
+	stripEffect_AllColors(10);
 }
 
 static void ColorWheel_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_ColorWheel(50);
-	}
+	stripEffect_ColorWheel(50);
 }
 
 static void PatternMove_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_PatternMove(50, 2, 10, 10, 10);
-	}
+	stripEffect_PatternMove(50, 2, 10, 10, 10);
 }
 
 static void FullEmpty_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_FullEmpty(50, 20, 20, 20);
-	}
+	stripEffect_FullEmpty(50, 20, 20, 20);
 }
 
 static void AlternateColors_Task(void const * argument) {
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
-	}
+	stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
 }
 
 /**
