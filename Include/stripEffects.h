@@ -2,6 +2,7 @@
 #define __STRIPEFFECTS
 
 #include "main.h"
+#include "cmsis_os.h"
 
 #define HEARTBEAT_STEPS		16
 

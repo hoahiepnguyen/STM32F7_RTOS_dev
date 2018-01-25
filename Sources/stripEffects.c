@@ -228,7 +228,8 @@ void stripEffect_ColorWheel(uint32_t interval) {
 	uint32_t led, colorIndex;
 
 	while (1) {
-		for (led = 0; led < LED_NUMBER; led++) {
+		for (led = 0; led < LED_NUMBER; led++)
+		{
 			colorIndex = (index + led * (766 / LED_NUMBER)) % 766;
 			setLEDcolor(led, colorsFull[colorIndex][0],
 					colorsFull[colorIndex][1], colorsFull[colorIndex][2]);

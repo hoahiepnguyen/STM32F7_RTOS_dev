@@ -55,11 +55,12 @@
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define I2C_TIMING              0x40912732
-/* Definition I2C ADDRESS */
 #define STM32F7_ADDRESS         0xD0
 #define CYPRESS_ADDR            0x37
 #define STA321MP_ADDR           0x40
 
+#define UPDATE_INTERVAL 		15 //refresh rate: 1/0.015ms = 66Hz
+#define TASK_INTERVAL			5000
 /* Private variables ---------------------------------------------------------*/
 __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
 __IO ITStatus Uart6_TxReady = RESET;
@@ -78,6 +79,16 @@ I2C_HandleTypeDef I2c1Handle;
 I2C_HandleTypeDef I2c2Handle;
 UART_HandleTypeDef Uart6Handle;
 
+osTimerId  xTimerUpdate;
+osThreadId MainHandler;
+osThreadId xCircularRingHandler;
+osThreadId xHeartBeatHandler;
+osThreadId xAllColorsHandler;
+osThreadId xColorWheelHandler;
+osThreadId xPatternMoveHandler;
+osThreadId xFullEmptyHandler;
+osThreadId xAlternateColorsHandler;
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void Error_Handler(void);
@@ -88,14 +99,15 @@ static void i2c_slave_Thread(void const *argument);
 static void uart_receive_Thread(void const * argument);
 static void uart_transmit_Thread(void const * argument);
 
-void CircularRing_Task(void);
-void HeartBeat_Task(void);
-void AllColors_Task(void);
-void ColorWheel_Task(void);
-void PatternMove_Task(void);
-void FullEmpty_Task(void);
-void AlternateColors_Task(void);
+static void led_control_Thread(void const * argument);
 
+static void CircularRing_Task(void const * argument);
+static void HeartBeat_Task(void const * argument);
+static void AllColors_Task(void const * argument);
+static void ColorWheel_Task(void const * argument);
+static void PatternMove_Task(void const * argument);
+static void FullEmpty_Task(void const * argument);
+static void AlternateColors_Task(void const * argument);
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -306,28 +318,54 @@ int main(void)
 
 	/* Send hello message through uart */
 	printf("Starting...\r\n");
-//	ws281x_init();
-
-//	setLEDcolor(3, 255, 0 , 0);
-//	ws281x_update();
+	ws281x_init();
 
 	/* Configure I2C bus */
-	// i2c1_slave_init();
-	//i2c2_master_init();
+	i2c1_slave_init();
+	i2c2_master_init();
+
+	/* Create threads */
+	osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, 1024);
+
+	osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, 64);
+	osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, 64);
+	osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, 64);
+	osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, 64);
+	osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, 64);
+	osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, 64);
+	osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, 64);
+
+	xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
+	xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
+	xAllColorsHandler = osThreadCreate(osThread(AllColors), NULL);
+	xColorWheelHandler = osThreadCreate(osThread(ColorWheel), NULL);
+	xPatternMoveHandler = osThreadCreate(osThread(PatternMove), NULL);
+	xFullEmptyHandler = osThreadCreate(osThread(FullEmpty), NULL);
+	xAlternateColorsHandler = osThreadCreate(osThread(AlternateColors), NULL);
+	MainHandler = osThreadCreate(osThread(led_control), NULL);
 
 	/* Threads definition */
 //	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
 //	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
 //	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
 //	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
 //	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
-	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
+//	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
+	osThreadSuspend(xHeartBeatHandler);
+	osThreadSuspend(xCircularRingHandler);
+	osThreadSuspend(xAllColorsHandler);
+	osThreadSuspend(xColorWheelHandler);
+	osThreadSuspend(xPatternMoveHandler);
+	osThreadSuspend(xFullEmptyHandler);
+	osThreadSuspend(xAlternateColorsHandler);
+	printf("end\r\n");
+
 	/* Start scheduler */
 	osKernelStart();
 
@@ -336,32 +374,114 @@ int main(void)
 	for(;;);
 }
 
-void CircularRing_Task(void) {
-	stripEffect_CircularRing(50, 0, 0, 20);
+static void led_control_Thread(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		osThreadResume(xHeartBeatHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xHeartBeatHandler);
+
+		osThreadResume(xCircularRingHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xCircularRingHandler);
+
+		osThreadResume(xAllColorsHandler);
+		osDelay(10000);
+		osThreadSuspend(xAllColorsHandler);
+
+		osThreadResume(xColorWheelHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xColorWheelHandler);
+
+		osThreadResume(xPatternMoveHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xPatternMoveHandler);
+
+		osThreadResume(xFullEmptyHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xFullEmptyHandler);
+
+		osThreadResume(xAlternateColorsHandler);
+		osDelay(TASK_INTERVAL);
+		osThreadSuspend(xAlternateColorsHandler);
+
+//		osDelayUntil(&PreviousWakeTime, 1000);
+	}
 }
 
-void HeartBeat_Task(void) {
-	stripEffect_HeartBeat(700, 64, 0, 16);
+static void CircularRing_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_CircularRing(50, 0, 0, 20);
+	}
+
 }
 
-void AllColors_Task(void) {
-	stripEffect_AllColors(10);
+static void HeartBeat_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_HeartBeat(700, 64, 0, 16);
+	}
+
 }
 
-void ColorWheel_Task(void) {
-	stripEffect_ColorWheel(50);
+static void AllColors_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_AllColors(10);
+	}
 }
 
-void PatternMove_Task(void) {
-	stripEffect_PatternMove(50, 2, 10, 10, 10);
+static void ColorWheel_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_ColorWheel(50);
+	}
 }
 
-void FullEmpty_Task(void) {
-	stripEffect_FullEmpty(50, 20, 20, 20);
+static void PatternMove_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_PatternMove(50, 2, 10, 10, 10);
+	}
 }
 
-void AlternateColors_Task(void) {
-	stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
+static void FullEmpty_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_FullEmpty(50, 20, 20, 20);
+	}
+}
+
+static void AlternateColors_Task(void const * argument) {
+	(void) argument;
+	uint32_t PreviousWakeTime = osKernelSysTick();
+
+	for(;;)
+	{
+		stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
+	}
 }
 
 /**
