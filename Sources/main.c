@@ -380,8 +380,9 @@ static void led_control_Thread(void const * argument) {
 
 	for(;;)
 	{
+
 		osThreadResume(xHeartBeatHandler);
-		osDelay(TASK_INTERVAL);
+		osDelay(15000);
 		osThreadSuspend(xHeartBeatHandler);
 
 		osThreadResume(xCircularRingHandler);
@@ -415,7 +416,7 @@ static void CircularRing_Task(void const * argument) {
 }
 
 static void HeartBeat_Task(void const * argument) {
-	stripEffect_HeartBeat(700, 64, 0, 16);
+	stripEffect_HeartBeat(150, 250, 0, 0);
 }
 
 static void AllColors_Task(void const * argument) {

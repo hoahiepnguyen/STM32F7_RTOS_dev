@@ -256,7 +256,7 @@ void stripEffect_CircularRing(uint32_t interval, uint8_t red, uint8_t green,
 	}
 }
 
-// the interval should be in the 300-1000 range for best visual effect
+// the interval should be in the 100-1000 range for best visual effect
 void stripEffect_HeartBeat(uint32_t interval, uint8_t red, uint8_t green,
 		uint8_t blue) {
 	uint8_t redInc, greenInc, blueInc;
@@ -278,25 +278,25 @@ void stripEffect_HeartBeat(uint32_t interval, uint8_t red, uint8_t green,
 		// first stroke
 		for (index = 0; index < HEARTBEAT_STEPS; index++) {
 			setWHOLEcolor(index * redInc, index * greenInc, index * blueInc);
-			HAL_Delay(interval / 50);
+			HAL_Delay(interval);
 		}
 		for (index = 0; index < HEARTBEAT_STEPS; index++) {
 			setWHOLEcolor(maxRed - index * redInc, maxGreen - index * greenInc,
 					maxBlue - index * blueInc);
-			HAL_Delay(interval / 45);
+			HAL_Delay(interval);
 		}
 		// second stroke
 		for (index = 0; index < HEARTBEAT_STEPS; index++) {
 			setWHOLEcolor(index * redInc, index * greenInc, index * blueInc);
-			HAL_Delay(interval / 40);
+			HAL_Delay(interval);
 		}
 		for (index = 0; index < HEARTBEAT_STEPS; index++) {
 			setWHOLEcolor(maxRed - index * redInc, maxGreen - index * greenInc,
 					maxBlue - index * blueInc);
-			HAL_Delay(interval / 35);
+			HAL_Delay(interval);
 		}
 		// relax..
-		HAL_Delay(interval);
+		HAL_Delay(500);
 	}
 }
 

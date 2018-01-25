@@ -4,7 +4,7 @@
 #include "main.h"
 #include "cmsis_os.h"
 
-#define HEARTBEAT_STEPS		16
+#define HEARTBEAT_STEPS		50
 
 void stripEffect_CircularRing(uint32_t interval, uint8_t red, uint8_t green,
 		uint8_t blue);
