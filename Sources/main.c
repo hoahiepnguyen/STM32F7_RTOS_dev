@@ -54,10 +54,6 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define I2C_TIMING              0x40912732
-#define STM32F7_ADDRESS         0xD0
-#define CYPRESS_ADDR            0x37
-#define STA321MP_ADDR           0x40
 
 #define UPDATE_INTERVAL 		15 //refresh rate: 1/0.015ms = 66Hz
 #define TASK_INTERVAL			5000
@@ -110,189 +106,6 @@ static void FullEmpty_Task(void const * argument);
 static void AlternateColors_Task(void const * argument);
 
 /* Private functions ---------------------------------------------------------*/
-
-void UART6_Init(void)
-{
-	static DMA_HandleTypeDef hdma_tx;
-	static DMA_HandleTypeDef hdma_rx;
-
-	GPIO_InitTypeDef    GPIO_InitStruct;
-
-	/** UART6 GPIO configuration
-		PC6 ------> UART6_TX
-		PC7 ------> UART6_RX
-	*/
-	/* Enable GPIO TX/RX clock */
-	USART6_TX_GPIO_CLK_ENABLE();
-	USART6_RX_GPIO_CLK_ENABLE();
-
-	/* Enable USARTx clock */
-	USART6_CLK_ENABLE();
-
-  	/* Enable DMA clock */
-  	DMAx_CLK_ENABLE();
-
-	/* UART TX GPIO pin configuration  */
-	GPIO_InitStruct.Pin       = USART6_TX_PIN;
-	GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-	GPIO_InitStruct.Pull      = GPIO_PULLUP;
-	GPIO_InitStruct.Speed     = GPIO_SPEED_HIGH;
-	GPIO_InitStruct.Alternate = USART6_TX_AF;
-
-	HAL_GPIO_Init(USART6_TX_GPIO_PORT, &GPIO_InitStruct);
-
-	/* UART RX GPIO pin configuration  */
-	GPIO_InitStruct.Pin = USART6_RX_PIN;
-	GPIO_InitStruct.Alternate = USART6_RX_AF;
-
-	HAL_GPIO_Init(USART6_RX_GPIO_PORT, &GPIO_InitStruct);
-
-
-	/*##-3- Configure the DMA ##################################################*/
-	/* Configure the DMA handler for Transmission process */
-	hdma_tx.Instance                 = USART6_TX_DMA_STREAM;
-	hdma_tx.Init.Channel             = USART6_TX_DMA_CHANNEL;
-	hdma_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
-	hdma_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
-	hdma_tx.Init.MemInc              = DMA_MINC_ENABLE;
-	hdma_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-	hdma_tx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-	hdma_tx.Init.Mode                = DMA_NORMAL;
-	hdma_tx.Init.Priority            = DMA_PRIORITY_LOW;
-
-	HAL_DMA_Init(&hdma_tx);
-
-	/* Associate the initialized DMA handle to the UART handle */
-	__HAL_LINKDMA(&Uart6Handle, hdmatx, hdma_tx);
-
-	/* Configure the DMA handler for reception process */
-	hdma_rx.Instance                 = USART6_RX_DMA_STREAM;
-	hdma_rx.Init.Channel             = USART6_RX_DMA_CHANNEL;
-	hdma_rx.Init.Direction           = DMA_PERIPH_TO_MEMORY;
-	hdma_rx.Init.PeriphInc           = DMA_PINC_DISABLE;
-	hdma_rx.Init.MemInc              = DMA_MINC_ENABLE;
-	hdma_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-	hdma_rx.Init.MemDataAlignment    = DMA_MDATAALIGN_BYTE;
-	hdma_rx.Init.Mode                = DMA_NORMAL;
-	hdma_rx.Init.Priority            = DMA_PRIORITY_HIGH;
-
-	HAL_DMA_Init(&hdma_rx);
-
-	/* Associate the initialized DMA handle to the the UART handle */
-	__HAL_LINKDMA(&Uart6Handle, hdmarx, hdma_rx);
-	  
-	/*##-4- Configure the NVIC for DMA #########################################*/
-	/* NVIC configuration for DMA transfer complete interrupt (USART6_TX) */
-	HAL_NVIC_SetPriority(USART6_DMA_TX_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(USART6_DMA_TX_IRQn);
-	
-	/* NVIC configuration for DMA transfer complete interrupt (USART6_RX) */
-	HAL_NVIC_SetPriority(USART6_DMA_RX_IRQn, 0, 0);
-	HAL_NVIC_EnableIRQ(USART6_DMA_RX_IRQn);
-
-	/* NVIC for USART */
-	HAL_NVIC_SetPriority(USART6_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(USART6_IRQn);
-
-	Uart6Handle.Instance        = USART6;
-	Uart6Handle.Init.BaudRate   = 115200;
-	Uart6Handle.Init.WordLength = UART_WORDLENGTH_8B;
-	Uart6Handle.Init.StopBits   = UART_STOPBITS_1;
-	Uart6Handle.Init.Parity     = UART_PARITY_NONE;
-	Uart6Handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
-	Uart6Handle.Init.Mode       = UART_MODE_TX_RX;
-	Uart6Handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-
-	if(HAL_UART_Init(&Uart6Handle) != HAL_OK)
-	{
-		Error_Handler();
-	}
-
-}
-
-void i2c1_slave_init(void)
-{
-	/*##Configure the I2C peripheral ######################################*/
-	I2c1Handle.Instance              = I2Cx_SLAVE;
-	I2c1Handle.Init.Timing           = I2C_TIMING;
-	I2c1Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_10BIT;
-	I2c1Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	I2c1Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
-	I2c1Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
-	I2c1Handle.Init.OwnAddress1      = STM32F7_ADDRESS;
-	I2c1Handle.Init.OwnAddress2      = 0xFF;
-
-	if(HAL_I2C_Init(&I2c1Handle) != HAL_OK)
-	{
-		/* Initialization Error */
-		Error_Handler();
-	}
-
-	/* Enable the Analog I2C Filter */
-	HAL_I2CEx_ConfigAnalogFilter(&I2c1Handle, I2C_ANALOGFILTER_ENABLE);
-}
-
-void i2c2_master_init(void)
-{
-	GPIO_InitTypeDef    GPIO_InitStruct;
-	RCC_PeriphCLKInitTypeDef    RCC_PeriphCLKInitStruct;
-
-	/*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
-	RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_MASTER;
-	RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_MASTER_CLKSOURCE_SYSCLK;
-	HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
-
-	/*##-2- Enable peripherals and GPIO Clocks #################################*/
-	/* Enable GPIO TX/RX clock */
-	I2Cx_MASTER_SDA_GPIO_CLK_ENABLE();
-	I2Cx_MASTER_SCL_GPIO_CLK_ENABLE();
-
-	/* Enable I2Cx clock */
-	I2Cx_MASTER_CLK_ENABLE();
-
-	/*##-3- Configure peripheral GPIO ##########################################*/
-	/** I2C2 GPIO configuration
-		PB10 ------> I2C2_SCL
-		PB11 ------> I2C2_SDA
-	*/
-	/* I2C SCL GPIO pin configuration  */
-	GPIO_InitStruct.Pin         = I2Cx_MASTER_SCL_PIN;
-	GPIO_InitStruct.Mode        = GPIO_MODE_AF_OD;
-	GPIO_InitStruct.Pull        = GPIO_PULLUP;
-	GPIO_InitStruct.Speed       = GPIO_SPEED_HIGH;
-	GPIO_InitStruct.Alternate   = I2Cx_MASTER_SCL_SDA_AF;
-	HAL_GPIO_Init(I2Cx_MASTER_SCL_GPIO_PORT, &GPIO_InitStruct);
-
-	/* I2C SDA GPIO pin configuration  */
-	GPIO_InitStruct.Pin       = I2Cx_MASTER_SDA_PIN;
-	GPIO_InitStruct.Alternate = I2Cx_MASTER_SCL_SDA_AF;
-	HAL_GPIO_Init(I2Cx_MASTER_SDA_GPIO_PORT, &GPIO_InitStruct);
-
-	/* NVIC for I2Cx */
-	HAL_NVIC_SetPriority(I2Cx_MASTER_ER_IRQn, 0, 1);
-	HAL_NVIC_EnableIRQ(I2Cx_MASTER_ER_IRQn);
-	HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 0, 2);
-	HAL_NVIC_EnableIRQ(I2Cx_MASTER_EV_IRQn);
-
-	/* Configure the I2C peripheral */
-	I2c2Handle.Instance              = I2Cx_MASTER;
-	I2c2Handle.Init.Timing           = I2C_TIMING;
-	I2c2Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
-	I2c2Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	I2c2Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
-	I2c2Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
-	I2c2Handle.Init.OwnAddress1      = CYPRESS_ADDR;
-	I2c2Handle.Init.OwnAddress2      = STA321MP_ADDR;
-	if(HAL_I2C_Init(&I2c2Handle) != HAL_OK)
-	{
-		/* Initialization Error */
-		Error_Handler();
-	}
-
-	/* Enable the Analog I2C Filter */
-	HAL_I2CEx_ConfigAnalogFilter(&I2c2Handle, I2C_ANALOGFILTER_ENABLE);
-}
-
 /**
 	* @brief  Main program
 	* @param  None
@@ -313,58 +126,56 @@ int main(void)
 
 	/* Configure logs */
 	log_init();
-	/* Congigure USART6 */
-	UART6_Init();
 
-	/* Send hello message through uart */
-	printf("Starting...\r\n");
+	/* Configure LED RING */
 	ws281x_init();
 
 	/* Configure I2C bus */
-	i2c1_slave_init();
-	i2c2_master_init();
+	I2C1_Init(&I2c1Handle);
 
 	/* Create threads */
-	osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
-	osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
-	xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
-	xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
-	xAllColorsHandler = osThreadCreate(osThread(AllColors), NULL);
-	xColorWheelHandler = osThreadCreate(osThread(ColorWheel), NULL);
-	xPatternMoveHandler = osThreadCreate(osThread(PatternMove), NULL);
-	xFullEmptyHandler = osThreadCreate(osThread(FullEmpty), NULL);
-	xAlternateColorsHandler = osThreadCreate(osThread(AlternateColors), NULL);
-	MainHandler = osThreadCreate(osThread(led_control), NULL);
+	// xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
+	// xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
+	// xAllColorsHandler = osThreadCreate(osThread(AllColors), NULL);
+	// xColorWheelHandler = osThreadCreate(osThread(ColorWheel), NULL);
+	// xPatternMoveHandler = osThreadCreate(osThread(PatternMove), NULL);
+	// xFullEmptyHandler = osThreadCreate(osThread(FullEmpty), NULL);
+	// xAlternateColorsHandler = osThreadCreate(osThread(AlternateColors), NULL);
+	// MainHandler = osThreadCreate(osThread(led_control), NULL);
 
 	/* Threads definition */
 //	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 //	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
 //	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
-//	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
-//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
 //	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
 //	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
-	osThreadSuspend(xHeartBeatHandler);
-	osThreadSuspend(xCircularRingHandler);
-	osThreadSuspend(xAllColorsHandler);
-	osThreadSuspend(xColorWheelHandler);
-	osThreadSuspend(xPatternMoveHandler);
-	osThreadSuspend(xFullEmptyHandler);
-	osThreadSuspend(xAlternateColorsHandler);
-	printf("end\r\n");
+	// osThreadSuspend(xHeartBeatHandler);
+	// osThreadSuspend(xCircularRingHandler);
+	// osThreadSuspend(xAllColorsHandler);
+	// osThreadSuspend(xColorWheelHandler);
+	// osThreadSuspend(xPatternMoveHandler);
+	// osThreadSuspend(xFullEmptyHandler);
+	// osThreadSuspend(xAlternateColorsHandler);
+
+	/* Send hello message through uart */
+	printf("Starting...\r\n");
 
 	/* Start scheduler */
 	osKernelStart();
@@ -560,7 +371,6 @@ static void uart_receive_Thread(void const * argument)
 	uint32_t PreviousWakeTime = osKernelSysTick();
 	int i;
 
-	printf("run here\r\n");
 	for(;;)
 	{
 		/* Clear buffer before receiving */

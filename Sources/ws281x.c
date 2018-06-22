@@ -59,10 +59,10 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef *htim)
 	hdma_tim.Instance = TIMx_CC1_DMA_INST;
 
 	/* Link DMA tim to hdma[TIM_DMA_ID_CC1] (Channel1) */
-	__HAL_LINKDMA(htim, hdma[TIM_DMA_ID_CC1], hdma_tim);
+	__HAL_LINKDMA(htim, hdma[TIM_DMA_ID_CC3], hdma_tim);
 
 	/* Initialize TIMx DMA handle*/
-	HAL_DMA_Init(htim->hdma[TIM_DMA_ID_CC1]);
+	HAL_DMA_Init(htim->hdma[TIM_DMA_ID_CC3]);
 
 	/* Configure the NVIC for DMA */
 	/* NVIC configuration for DMA transfer complete interrupt */
@@ -77,7 +77,7 @@ void ws281x_init(void)
 	TimHandle.Instance = TIMx;
 
 	TimHandle.Init.Period 				= TIMER_PERIOD - 1;
-	TimHandle.Init.RepetitionCounter 	= LED_BUFFER_SIZE + 1;
+	TimHandle.Init.RepetitionCounter 	= 0;
 	TimHandle.Init.Prescaler			= 0;
 	TimHandle.Init.ClockDivision 		= TIM_CLOCKDIVISION_DIV1;
 	TimHandle.Init.CounterMode 			= TIM_COUNTERMODE_UP;
@@ -85,24 +85,24 @@ void ws281x_init(void)
 	HAL_TIM_PWM_Init(&TimHandle);
 
 	/* Configure the PWM channel 1 */
-	sConfig.OCMode 		 = TIM_OCMODE_PWM1;
-	sConfig.OCPolarity 	 = TIM_OCPOLARITY_HIGH;
+	sConfig.OCMode 		 = TIM_OCMODE_PWM2;
+	sConfig.OCPolarity 	 = TIM_OCPOLARITY_LOW;
 //	sConfig.Pulse        = 99;
 	sConfig.OCNPolarity  = TIM_OCNPOLARITY_HIGH;
 	sConfig.OCFastMode   = TIM_OCFAST_DISABLE;
-	sConfig.OCIdleState  = TIM_OCIDLESTATE_RESET;
+	sConfig.OCIdleState  = TIM_OCNIDLESTATE_SET;
 	sConfig.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-	HAL_TIM_PWM_ConfigChannel(&TimHandle, &sConfig, TIM_CHANNEL_1);
+	HAL_TIM_PWM_ConfigChannel(&TimHandle, &sConfig, TIM_CHANNEL_3);
 
 	/*Start PWM signal generation in DMA mode ############################*/
-	HAL_TIM_PWM_Start_DMA(&TimHandle, TIM_CHANNEL_1, LEDbuffer,
+	HAL_TIM_PWM_Start_DMA(&TimHandle, TIM_CHANNEL_3, LEDbuffer,
 			LED_BUFFER_SIZE);
 }
 
 void ws281x_update(void)
 {
-	HAL_TIM_PWM_ConfigChannel(&TimHandle, &sConfig, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start_DMA(&TimHandle, TIM_CHANNEL_1, LEDbuffer,
+	HAL_TIM_PWM_ConfigChannel(&TimHandle, &sConfig, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start_DMA(&TimHandle, TIM_CHANNEL_3, LEDbuffer,
 			LED_BUFFER_SIZE);
 }
 
@@ -183,5 +183,5 @@ void fillBufferWhite(void)
   */
 void TIMx_DMA_IRQHandler(void)
 {
-	HAL_DMA_IRQHandler(TimHandle.hdma[TIM_DMA_ID_CC1]);
+	HAL_DMA_IRQHandler(TimHandle.hdma[TIM_DMA_ID_CC3]);
 }

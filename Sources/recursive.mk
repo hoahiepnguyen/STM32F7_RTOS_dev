@@ -11,6 +11,9 @@ OBJECTS+=${COMPILER}/main.o \
 		 ${COMPILER}/system_stm32f7xx.o \
 		 ${COMPILER}/ws281x.o \
 		 ${COMPILER}/stripEffects.o \
+		 ${COMPILER}/i2c.o \
+		 ${COMPILER}/cy8cmbr3.o \
+
 ##############################################################################
 #
 #   The flags passed to the C compiler.

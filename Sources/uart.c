@@ -4,14 +4,11 @@
 __IO ITStatus Uart6_TxReady = RESET;
 __IO ITStatus Uart6_RxReady = RESET;
 
-/* UART handler declaration */
-UART_HandleTypeDef Uart6Handle;
-
 /* Private function prototypes -----------------------------------------------*/
 
 /* Private functions ---------------------------------------------------------*/
 
-void UART6_Init(void)
+void UART6_Init(UART_HandleTypeDef uart_handle)
 {
     static DMA_HandleTypeDef hdma_tx;
     static DMA_HandleTypeDef hdma_rx;
@@ -60,7 +57,7 @@ void UART6_Init(void)
     HAL_DMA_Init(&hdma_tx);
 
     /* Associate the initialized DMA handle to the UART handle */
-    __HAL_LINKDMA(&Uart6Handle, hdmatx, hdma_tx);
+    __HAL_LINKDMA(&Handle, hdmatx, hdma_tx);
 
     /* Configure the DMA handler for reception process */
     hdma_rx.Instance                 = USART6_RX_DMA_STREAM;
@@ -76,7 +73,7 @@ void UART6_Init(void)
     HAL_DMA_Init(&hdma_rx);
 
     /* Associate the initialized DMA handle to the the UART handle */
-    __HAL_LINKDMA(&Uart6Handle, hdmarx, hdma_rx);
+    __HAL_LINKDMA(&Handle, hdmarx, hdma_rx);
       
     /*##-4- Configure the NVIC for DMA #########################################*/
     /* NVIC configuration for DMA transfer complete interrupt (USART6_TX) */
@@ -91,21 +88,21 @@ void UART6_Init(void)
     HAL_NVIC_SetPriority(USART6_IRQn, 0, 1);
     HAL_NVIC_EnableIRQ(USART6_IRQn);
 
-    Uart6Handle.Instance        = USART6;
-    Uart6Handle.Init.BaudRate   = 115200;
-    Uart6Handle.Init.WordLength = UART_WORDLENGTH_8B;
-    Uart6Handle.Init.StopBits   = UART_STOPBITS_1;
-    Uart6Handle.Init.Parity     = UART_PARITY_NONE;
-    Uart6Handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
-    Uart6Handle.Init.Mode       = UART_MODE_TX_RX;
-    Uart6Handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-    HAL_UART_Init(&Uart6Handle);
+    uart_handle.Instance        = USART6;
+    uart_handle.Init.BaudRate   = 115200;
+    uart_handle.Init.WordLength = UART_WORDLENGTH_8B;
+    uart_handle.Init.StopBits   = UART_STOPBITS_1;
+    uart_handle.Init.Parity     = UART_PARITY_NONE;
+    uart_handle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
+    uart_handle.Init.Mode       = UART_MODE_TX_RX;
+    uart_handle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    HAL_UART_Init(&uart_handle);
 
 }
 
-int Uart6_Transmit_DMA(uint8_t *Txbuffer, uint8_t size)
+int Uart6_Transmit_DMA(UART_HandleTypeDef uart_handle, uint8_t *Txbuffer, uint8_t size)
 {
-    if(HAL_UART_Transmit_DMA(&Uart6Handle, Txbuffer, size) != HAL_OK)
+    if(HAL_UART_Transmit_DMA(&uart_handle, Txbuffer, size) != HAL_OK)
     {
         return -1;
     }
@@ -113,13 +110,12 @@ int Uart6_Transmit_DMA(uint8_t *Txbuffer, uint8_t size)
     return 0;
 }
 
-int Uart6_Receive_DMA(uint8_t *RxBuff, uint8_t size)
+int Uart6_Receive_DMA(UART_HandleTypeDef uart_handle, uint8_t *RxBuff, uint8_t size)
 {
     Uart6_RxReady = RESET;
 
-    if(HAL_UART_Receive_DMA(&Uart6Handle, RxBuff, size) != HAL_OK)
+    if(HAL_UART_Receive_DMA(&uart_handle, RxBuff, size) != HAL_OK)
     {
-    printf("run here Rece \r\n");
         return -1;
     }
 
@@ -140,8 +136,7 @@ int Uart6_Receive_DMA(uint8_t *RxBuff, uint8_t size)
   */
 void USART6_IRQHandler(void)
 {
-  HAL_UART_IRQHandler(&Uart6Handle);
-  printf("run here hiep \r\n");
+  HAL_UART_IRQHandler(&uart_handle);
 }
 
 /**
@@ -153,7 +148,7 @@ void USART6_IRQHandler(void)
   */
 void USART6_DMA_RX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(Uart6Handle.hdmarx);
+  HAL_DMA_IRQHandler(uart_handle.hdmarx);
 }
 
 /**
@@ -180,7 +175,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
     /* Set transmission flag: transfer complete */
     Uart6_RxReady = SET;
-    printf("run here Rxbuff \r\n");
 
 }
 
@@ -205,5 +199,5 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
   */
 void USART6_DMA_TX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(Uart6Handle.hdmatx);
+  HAL_DMA_IRQHandler(uart_handle.hdmatx);
 }
