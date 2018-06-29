@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "main.h"
 #include "cy8cmbr3.h"
 
-//Paste/Initialize the configuration array copied from the IIC file of Ez-Click here under the configData array  
+/* Above are the Command Codes used to configure MBR3*/
+/* uint8_t configData[128] = {
+    /* The below configuration array enables all 4 buttons, Proximity   */
+    /*0x79, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00, 0x40, 0x15, 0x00, 0x00, 0x80, 0x7F, 0x7F, 0x80, 0x80, 0x80, 0x80, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x05, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0xFF, 0xFF, 0xFF, 0x0F, 0x0F, 0x0F, 0x0F, 0xFF, 0x00, 0x00, 0x00, 0x03, 0x03, 0x01, 0x48, 0x00, 0x37, 0x01, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB8, 0xA7};
+*/
 uint8_t configData[128] = {
     //Buzzer and Host Int Enabled: Jumper J15 in Configuration A on CY3280-MBR3 Kit
     0x78u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x7Fu, 0x7Fu, 0x7Fu, 0x80u,0x80u, 0x80u, 0x80u, 0x7Fu, 0x7Fu, 0x7Fu, 0x7Fu, 0x7Fu,0x7Fu, 0x7Fu, 0x7Fu, 0x7Fu, 0x03u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x80u,0x05u, 0x00u, 0x00u, 0x02u, 0x00u, 0x02u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x81u, 0x01u,0x00u, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu,0xFFu, 0x00u, 0x00u, 0x00u, 0x43u, 0x03u, 0x01u, 0x58u,0x00u, 0x37u, 0x06u, 0x00u, 0x00u, 0x0Au, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u,0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x96u, 0x1Eu
@@ -11,38 +16,66 @@ uint8_t configData[128] = {
 int readflag=0;
 uint8_t *TxBuffer;
 
+void MBR3_HOST_INT_Config(void)
+{
+    GPIO_InitTypeDef    GPIO_InitStructure;
+
+    /* Enable GPIOB clock */
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    /* Configure PB0 pin as input floating */
+    GPIO_InitStructure.Mode = GPIO_MODE_IT_RISING;
+    GPIO_InitStructure.Pull = GPIO_NOPULL;
+    GPIO_InitStructure.Pin  = GPIO_PIN_0;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+    /* Enable adn set EXTI Line0 Interrupt to the lowest priority */
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
 CY8CMBR3116_Result ConfigureMBR3(I2C_HandleTypeDef *I2Cx)
 {
     uint8_t REGMAP_REG = (uint8_t)REGMAP_ORIGIN;
     I2C_HandleTypeDef* handle = I2Cx;
 
     //Wake up the MBR3 device
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)CYPRESS_ADDR, 
+    /* fix me, following cypress document, MBR3 need to be wrote
+        data more than 3 times to wake up */ 
+    HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
+                &REGMAP_REG, 1, 1000);
+    HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
+                &REGMAP_REG, 1, 1000);
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
                 &REGMAP_REG, 1, 1000))
     {
+        DEBUG_PRINT("Wake up MBR3");
         return CY8CMBR3116_Result_ERROR;
     } 
     // send configuration
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)CYPRESS_ADDR, 
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
                 (uint8_t *)configData, 128, 1000))
     {
+        DEBUG_PRINT("Send configuration");
         return CY8CMBR3116_Result_ERROR;
     }
 
     //apply configuration to MBR3
     TxBuffer[0] = CTRL_CMD;
     TxBuffer[1] = SAVE_CHECK_CRC;
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)CYPRESS_ADDR, 
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
                 (uint8_t *)TxBuffer, 2, 1000))
     {
+        DEBUG_PRINT("CRC checking");
         return CY8CMBR3116_Result_ERROR;
     }
 
     TxBuffer[0] = CTRL_CMD;
     TxBuffer[1] = SW_RESET;
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)CYPRESS_ADDR, 
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
                 (uint8_t *)TxBuffer, 2, 1000))
     {
+        DEBUG_PRINT("Reset SW");
         return CY8CMBR3116_Result_ERROR;
     }
 
@@ -59,15 +92,17 @@ CY8CMBR3116_Result ReadandDisplaySensorStatus(I2C_HandleTypeDef *I2Cx)
     I2C_HandleTypeDef* handle = I2Cx;
 
     //Config button
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)CYPRESS_ADDR, 
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
                 &BUTTON_REG, 1, 1000))
     {
+        DEBUG_PRINT("Configure button");
         return CY8CMBR3116_Result_ERROR;
     }
-    printf("run here\n");
-    if(HAL_I2C_Master_Receive(handle, (uint16_t)CYPRESS_ADDR,
+
+    if(HAL_I2C_Master_Receive(handle, (uint16_t)MBR3_ADDR,
                 &button_stat, 1, 1000))
     {
+        DEBUG_PRINT("Read button status");
         return CY8CMBR3116_Result_ERROR;
     }
 

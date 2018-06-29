@@ -60,16 +60,16 @@ void PendSV_Handler(void);
 void SysTick_Handler(void);
 void ETH_IRQHandler(void);
 void USARTx_IRQHandler(void);
-void USART6_IRQHandler(void);
-void USART6_DMA_TX_IRQHandler(void);
-void USART6_DMA_RX_IRQHandler(void);
-void I2Cx_SLAVE_DMA_RX_IRQHandler(void);
-void I2Cx_SLAVE_DMA_TX_IRQHandler(void);
-void I2Cx_SLAVE_EV_IRQHandler(void);
-void I2Cx_SLAVE_ER_IRQHandler(void);
+void USART3_IRQHandler(void);
+void USART3_DMA_TX_IRQHandler(void);
+void USART3_DMA_RX_IRQHandler(void);
+void I2Cx_MASTER_DMA_RX_IRQHandler(void);
+void I2Cx_MASTER_DMA_TX_IRQHandler(void);
 void I2Cx_MASTER_EV_IRQHandler(void);
 void I2Cx_MASTER_ER_IRQHandler(void);
-
+void I2Cx_CPU_EV_IRQHandler(void);
+void I2Cx_CPU_ER_IRQHandler(void);
+void EXTI0_IRQHandler(void);
 #ifdef __cplusplus
 }
 #endif

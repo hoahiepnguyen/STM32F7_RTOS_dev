@@ -44,11 +44,18 @@
 #include "stripEffects.h"
 #include "i2c.h"
 #include "cy8cmbr3.h"
+#include "uart.h"
 //#include "uart.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* User can use this section to tailor USARTx/UARTx instance used and associated 
    resources */
+#ifdef DEBUG
+# define DEBUG_PRINT(x)      printf("DEBUG: %s:%d" x "\r\n", \
+                                      __LINE__, __FUNCTION__)
+#else
+# define DEBUG_PRINT(x) do {} while (0)
+#endif
 /* Definition for USARTx clock resources */
 #define USARTx                           USART1
 #define USARTx_CLK_ENABLE()              __USART1_CLK_ENABLE()

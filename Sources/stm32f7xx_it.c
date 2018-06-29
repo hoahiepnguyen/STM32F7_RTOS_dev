@@ -51,10 +51,10 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-extern UART_HandleTypeDef Uart1Handle;
-extern UART_HandleTypeDef Uart6Handle;
-extern I2C_HandleTypeDef I2c1Handle;
-extern I2C_HandleTypeDef I2c2Handle;
+extern UART_HandleTypeDef UART1_Handle;
+extern UART_HandleTypeDef UART3_Handle;
+extern I2C_HandleTypeDef I2C1_Handle;
+extern I2C_HandleTypeDef I2C4_Handle;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -178,9 +178,9 @@ void SysTick_Handler(void)
   * @Note   This function is redefined in "main.h" and related to DMA  
   *         used for USART data transmission     
   */
-void USART6_DMA_RX_IRQHandler(void)
+void USART3_DMA_RX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(Uart6Handle.hdmarx);
+  HAL_DMA_IRQHandler(UART3_Handle.hdmarx);
 }
 
 /**
@@ -190,9 +190,9 @@ void USART6_DMA_RX_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA  
   *         used for USART data reception    
   */
-void USART6_DMA_TX_IRQHandler(void)
+void USART3_DMA_TX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(Uart6Handle.hdmatx);
+  HAL_DMA_IRQHandler(UART3_Handle.hdmatx);
 }
 
 /**
@@ -202,9 +202,9 @@ void USART6_DMA_TX_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA  
   *         used for USART data transmission     
   */
-void USART6_IRQHandler(void)
+void USART3_IRQHandler(void)
 {
-  HAL_UART_IRQHandler(&Uart6Handle);
+  HAL_UART_IRQHandler(&UART3_Handle);
 }
 /**
   * @brief  This function handles UART interrupt request.  
@@ -215,7 +215,7 @@ void USART6_IRQHandler(void)
   */
 void USARTx_IRQHandler(void)
 {
-  HAL_UART_IRQHandler(&Uart1Handle);
+  HAL_UART_IRQHandler(&UART1_Handle);
 }
 
 /**
@@ -223,10 +223,10 @@ void USARTx_IRQHandler(void)
   * @param  None
   * @retval None
   */
-void EXTI15_10_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(KEY_BUTTON_PIN);
-}
+// void EXTI15_10_IRQHandler(void)
+// {
+//   HAL_GPIO_EXTI_IRQHandler(KEY_BUTTON_PIN);
+// }
 
 /**
   * @brief  This function handles PPP interrupt request.
@@ -244,9 +244,9 @@ void EXTI15_10_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA Channel 
   *         used for I2C data transmission     
   */
-void I2Cx_SLAVE_DMA_RX_IRQHandler(void)
+void I2Cx_MASTER_DMA_RX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(I2c1Handle.hdmarx);
+  HAL_DMA_IRQHandler(I2C1_Handle.hdmarx);
 }
 
 /**
@@ -256,32 +256,10 @@ void I2Cx_SLAVE_DMA_RX_IRQHandler(void)
   * @Note   This function is redefined in "main.h" and related to DMA Channel 
   *         used for I2C data reception    
   */
-void I2Cx_SLAVE_DMA_TX_IRQHandler(void)
+void I2Cx_MASTER_DMA_TX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(I2c1Handle.hdmatx);
+  HAL_DMA_IRQHandler(I2C1_Handle.hdmatx);
 }
-/**
-  * @brief  This function handles I2C event interrupt request.
-  * @param  None
-  * @retval None
-  * @Note   This function is redefined in "main.h" and related to I2C data transmission
-  */
-void I2Cx_SLAVE_EV_IRQHandler(void)
-{
-  HAL_I2C_EV_IRQHandler(&I2c1Handle);
-}
-
-/**
-  * @brief  This function handles I2C error interrupt request.
-  * @param  None
-  * @retval None
-  * @Note   This function is redefined in "main.h" and related to I2C error
-  */
-void I2Cx_SLAVE_ER_IRQHandler(void)
-{
-  HAL_I2C_ER_IRQHandler(&I2c1Handle);
-}
-
 /**
   * @brief  This function handles I2C event interrupt request.
   * @param  None
@@ -290,7 +268,7 @@ void I2Cx_SLAVE_ER_IRQHandler(void)
   */
 void I2Cx_MASTER_EV_IRQHandler(void)
 {
-  HAL_I2C_EV_IRQHandler(&I2c2Handle);
+  HAL_I2C_EV_IRQHandler(&I2C1_Handle);
 }
 
 /**
@@ -301,7 +279,29 @@ void I2Cx_MASTER_EV_IRQHandler(void)
   */
 void I2Cx_MASTER_ER_IRQHandler(void)
 {
-  HAL_I2C_ER_IRQHandler(&I2c2Handle);
+  HAL_I2C_ER_IRQHandler(&I2C1_Handle);
+}
+
+/**
+  * @brief  This function handles I2C event interrupt request.
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to I2C data transmission
+  */
+void I2Cx_CPU_EV_IRQHandler(void)
+{
+  HAL_I2C_EV_IRQHandler(&I2C4_Handle);
+}
+
+/**
+  * @brief  This function handles I2C error interrupt request.
+  * @param  None
+  * @retval None
+  * @Note   This function is redefined in "main.h" and related to I2C error
+  */
+void I2Cx_CPU_ER_IRQHandler(void)
+{
+  HAL_I2C_ER_IRQHandler(&I2C4_Handle);
 }
 
 /**

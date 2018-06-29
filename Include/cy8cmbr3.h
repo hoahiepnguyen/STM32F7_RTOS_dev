@@ -118,17 +118,18 @@
 #define SPO_ENABLE              0x03
 #define SPO_DISABLE             0x00
 
-/* CYPRESS address (Default)*/
-#define CYPRESS_ADDR    0x37
+/* CYPRESS MBR3116 address (Default)*/
+#define MBR3_ADDR            0x37
 
 typedef enum 
 {
-    CY8CMBR3116_Result_OK  = 0x00,           /*Everything is OK */
+    CY8CMBR3116_Result_OK  = 0x00,          /*Everything is OK */
     CY8CMBR3116_Result_ERROR,               /*Unknown Error */
     CY8CMBR3116_Result_DeviceNotConnected,  /* There is no device with valid slave address */
     CY8CMBR3116_Result_DeviceInvalid        /*Connected device with address is not CY8CMBR */
 }CY8CMBR3116_Result;
 /* Exported functions ------------------------------------------------------- */
+void MBR3_HOST_INT_Config(void);
 CY8CMBR3116_Result ConfigureMBR3(I2C_HandleTypeDef *I2Cx);
 CY8CMBR3116_Result ReadandDisplaySensorStatus(I2C_HandleTypeDef *I2Cx);
 void DisplaySensorStatus(uint8_t buffer);

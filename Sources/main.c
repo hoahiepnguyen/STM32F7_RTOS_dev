@@ -54,26 +54,21 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-
+#define I2C_TIMING              0x40912732 //0x00303D5D; 0x00A0689A
+#define STM32F7_ADDR 			0xD0
 #define UPDATE_INTERVAL 		15 //refresh rate: 1/0.015ms = 66Hz
 #define TASK_INTERVAL			5000
 /* Private variables ---------------------------------------------------------*/
 __IO uint32_t UserButtonStatus = 0;  /* set to 1 after User Button interrupt  */
-__IO ITStatus Uart6_TxReady = RESET;
-__IO ITStatus Uart6_RxReady = RESET;
+
 
 osThreadId led_ring_ThreadId;
-osThreadId i2c_master_ThreadId;
 osThreadId i2c_slave_ThreadId;
-osThreadId uart_receive_ThreadId;
-osThreadId uart_transmit_ThreadId;
-osThreadId pwm_tim2_ThreadId;
 
-uint8_t aTxBuffer[] = "hey Dark";
+uint8_t aTxBuffer[] = "Hello Olli";
 uint8_t aRxBuffer[RXBUFFERSIZE];
-I2C_HandleTypeDef I2c1Handle;
-I2C_HandleTypeDef I2c2Handle;
-UART_HandleTypeDef Uart6Handle;
+I2C_HandleTypeDef I2C1_Handle;
+I2C_HandleTypeDef I2C4_Handle;
 
 osTimerId  xTimerUpdate;
 osThreadId MainHandler;
@@ -89,14 +84,13 @@ osThreadId xAlternateColorsHandler;
 void SystemClock_Config(void);
 static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
+void I2C1_Init(void);
+void CPU_I2C4_Init(void);
+
 static void led_ring_Thread(void const *argument);
-static void i2c_master_Thread(void const *argument);
 static void i2c_slave_Thread(void const *argument);
-static void uart_receive_Thread(void const * argument);
-static void uart_transmit_Thread(void const * argument);
 
 static void led_control_Thread(void const * argument);
-
 static void CircularRing_Task(void const * argument);
 static void HeartBeat_Task(void const * argument);
 static void AllColors_Task(void const * argument);
@@ -121,17 +115,23 @@ int main(void)
 	SystemClock_Config();
 	/* Configure LED1 */
 	BSP_LED_Init(LED1);
-	/* Configure USER Button */
-	BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_EXTI);
 
 	/* Configure logs */
 	log_init();
+	UART3_Init();
 
 	/* Configure LED RING */
 	ws281x_init();
 
 	/* Configure I2C bus */
-	I2C1_Init(&I2c1Handle);
+	I2C1_Init();
+	CPU_I2C4_Init();
+
+	/* Configure EXTI Line0 (connected to PB0 pin) in interrupt mode */
+	MBR3_HOST_INT_Config();
+
+	/* Configure MBR3 */
+	ConfigureMBR3(&I2C1_Handle);
 
 	/* Create threads */
 	// osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
@@ -154,18 +154,12 @@ int main(void)
 	// MainHandler = osThreadCreate(osThread(led_control), NULL);
 
 	/* Threads definition */
-//	osThreadDef(i2c_master, i2c_master_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
 	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(uart_transmit, uart_transmit_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(uart_receive, uart_receive_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
-//	i2c_master_ThreadId = osThreadCreate(osThread(i2c_master), NULL);
 	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
 	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
-//	uart_transmit_ThreadId = osThreadCreate(osThread(uart_transmit), NULL);
-//	uart_receive_ThreadId = osThreadCreate(osThread(uart_receive), NULL);
 	// osThreadSuspend(xHeartBeatHandler);
 	// osThreadSuspend(xCircularRingHandler);
 	// osThreadSuspend(xAllColorsHandler);
@@ -250,83 +244,6 @@ static void AlternateColors_Task(void const * argument) {
 	stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
 }
 
-/**
-	* @brief  Toggle LED1 thread
-	* @param  Thread not used
-	* @retval None
-	*/
-static void i2c_master_Thread(void const *argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	aTxBuffer[0] = 0x00; //address reg
-	aTxBuffer[1] = 0x01; //data
-
-	for(;;)
-	{
-		BSP_LED_On(LED1);
-		// /* Wait for USER button press before starting the Communication */
-		// while(BSP_PB_GetState(BUTTON_KEY) != 1)
-		// {
-
-		// }
-
-		// /* wait for USER button release before starting the Communication */
-		// while(BSP_PB_GetState(BUTTON_KEY) != 0)
-		// {
-		// }
-
-		/*## Start the transmission process #####################################*/  
-		/* While the I2C in reception process, user can transmit data through 
-		 "aTxBuffer" buffer */
-		while(HAL_I2C_Master_Transmit_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t*)aTxBuffer, 2)!= HAL_OK)
-		{
-		/* Error_Handler() function is called when Timeout error occurs.
-		   When Acknowledge failure occurs (Slave don't acknowledge it's address)
-		   Master restarts communication */
-			if (HAL_I2C_GetError(&I2c2Handle) != HAL_I2C_ERROR_AF)
-			{
-				Error_Handler();
-			}
-		}
-		BSP_LED_Off(LED1);
-
-		/*## Wait for the end of the transfer ###################################*/  
-		/*  Before starting a new communication transfer, you need to check the current   
-		  state of the peripheral; if it’s busy you need to wait for the end of current
-		  transfer before starting a new one.
-		  For simplicity reasons, this example is just waiting till the end of the 
-		  transfer, but application may perform other tasks while transfer operation
-		  is ongoing. */  
-		while (HAL_I2C_GetState(&I2c2Handle) != HAL_I2C_STATE_READY)
-		{
-		}
-		// /* Wait for USER Button press before starting the Communication */
-		// while (BSP_PB_GetState(BUTTON_KEY) != 1)
-		// {
-		// }
-
-		// /* Wait for USER Button release before starting the Communication */
-		// while (BSP_PB_GetState(BUTTON_KEY) != 0)
-		// {
-		// }
-
-		/*## Put I2C peripheral in reception process ###########################*/  
-		if (HAL_I2C_Master_Receive_IT(&I2c2Handle, (uint16_t)CYPRESS_ADDR, (uint8_t *)aRxBuffer, 2) == HAL_OK)
-		{
-			BSP_LED_On(LED1);
-			printf("I2C_MASTER: aRxBuffer[0] = %x\r\n", aRxBuffer[0]);
-			printf("I2C_MASTER: aRxBuffer[1] = %x\r\n", aRxBuffer[1]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
-
-	}
-
-}
 
 /**
 	* @brief  Toggle LED1 thread
@@ -340,9 +257,8 @@ static void i2c_slave_Thread(void const *argument)
 
 	for(;;)
 	{
-		if(HAL_I2C_Slave_Receive_DMA(&I2c1Handle, (uint8_t *)aRxBuffer, 2) == HAL_OK)
+		if(HAL_I2C_Slave_Receive(&I2C4_Handle, (uint8_t *)aRxBuffer, 2, 1000) == HAL_OK)
 		{
-			BSP_LED_On(LED1);
 			printf("%x\r\n", aRxBuffer[0]);
 			printf("%x\r\n", aRxBuffer[1]);
 		}
@@ -365,94 +281,6 @@ static void led_ring_Thread(void const *argument)
 	}
 }
 
-static void uart_receive_Thread(void const * argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-	int i;
-
-	for(;;)
-	{
-		/* Clear buffer before receiving */
-		for(i=0; i<4; i++)
-		{
-		  aRxBuffer[i] = 0;
-		}
-		/* Reset transmission flag */
-		Uart6_RxReady = RESET;
-
-		if(HAL_UART_Receive_DMA(&Uart6Handle, (uint8_t *)aRxBuffer, 4) != HAL_OK)
-		{
-			Error_Handler();
-		}
-		// if(Uart6_Receive_DMA((uint8_t *)aRxBuffer, 4) < 0)
-		// {
-		// 	Error_Handler();
-		//}
-		while (Uart6_RxReady != SET)
-		{
-//			printf("wait here\r\n");
-		}
-		if(aRxBuffer[0] == 66)
-		{
-			printf("receive 'B' string\r\n");
-		}
-		if(aRxBuffer[1] == 76)
-		{
-			printf("receive 'L' string\r\n");
-		}
-		if(aRxBuffer[2] == 48)
-		{
-			printf("receive '0' string\r\n");
-		}
-		if(aRxBuffer[3] == 49)
-		{
-			printf("receive '1' string\r\n");
-
-		}
-		// /* Keyword "N" */
-		// if(aRxBuffer[4] == 78)
-		// {
-		// 	 Set value to 1 for sending to Beaglebone
-		// 	UserButtonStatus = 1;
-		// }
-		printf("done\r\n");
-		osDelayUntil(&PreviousWakeTime, 1000);
-	}
-}
-
-static void uart_transmit_Thread(void const * argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		/* Wait for User push-button press before starting the Communication.
-		   In the meantime, LED1 is blinking */
-		while(UserButtonStatus == 0)
-		{
-			/* Toggle LED1*/
-			BSP_LED_Toggle(LED1); 
-		}
-  
-		/* Reset transmission flag */
-		Uart6_TxReady = RESET;
-
-		// if(HAL_UART_Transmit_DMA(&Uart6Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
-		// {
-		// 	Error_Handler();
-		// }
-
-		while (Uart6_TxReady != SET)
-		{
-		}
-		/* Reset value for next step */
-		UserButtonStatus = 0;
-
-		osDelayUntil(&PreviousWakeTime, 1000);
-	}
-}
 /**
 	* @brief  System Clock Configuration
 	*         The system Clock is configured as follow : 
@@ -515,19 +343,117 @@ void SystemClock_Config(void)
 		while(1) { ; }
 	}  
 }
+/**
+  * @brief  This function configure I2C1 bus.
+  * @param  None
+  * @retval None
+  */
+void I2C1_Init(void)
+{
+    /*##Configure the I2C peripheral ######################################*/
+    I2C1_Handle.Instance              = I2Cx_MASTER;
+    I2C1_Handle.Init.Timing           = I2C_TIMING;
+    I2C1_Handle.Init.OwnAddress1      = 0;
+    I2C1_Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+    I2C1_Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+    I2C1_Handle.Init.OwnAddress2      = 0;
+    I2C1_Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+    I2C1_Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
 
+    if(HAL_I2C_Init(&I2C1_Handle) != HAL_OK)
+    {
+        /* Initialization Error */
+        Error_Handler();
+    }
+
+    /* Enable the Analog I2C Filter */
+    HAL_I2CEx_ConfigAnalogFilter(&I2C1_Handle, I2C_ANALOGFILTER_ENABLE);
+}
+
+void CPU_I2C4_Init(void)
+{
+	GPIO_InitTypeDef  GPIO_InitStruct;
+	RCC_PeriphCLKInitTypeDef  RCC_PeriphCLKInitStruct;
+
+	  /*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
+	RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_CPU;
+	RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_CPU_CLKSOURCE_SYSCLK;
+	HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
+
+	/*##-2- Enable peripherals and GPIO Clocks #################################*/
+	/* Enable GPIO TX/RX clock */
+	I2Cx_CPU_SCL_GPIO_CLK_ENABLE();
+	I2Cx_CPU_SDA_GPIO_CLK_ENABLE();
+
+	  /* Enable I2Cx clock */
+	I2Cx_CPU_CLK_ENABLE();
+	/*##-3- Configure peripheral GPIO ##########################################*/
+	  /** I2C1 GPIO configuration
+	    PD12 ------> I2C4_SCL
+	    PD13 ------> I2C4_SDA
+	*/
+	/* I2C SCL GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = I2Cx_CPU_SCL_PIN;
+	GPIO_InitStruct.Mode      = GPIO_MODE_AF_OD;
+	GPIO_InitStruct.Pull      = GPIO_PULLUP;
+	GPIO_InitStruct.Speed     = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Alternate = I2Cx_CPU_SCL_SDA_AF;
+	HAL_GPIO_Init(I2Cx_CPU_SCL_GPIO_PORT, &GPIO_InitStruct);
+	  
+	/* I2C SDA GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = I2Cx_CPU_SDA_PIN;
+	GPIO_InitStruct.Alternate = I2Cx_CPU_SCL_SDA_AF;
+	HAL_GPIO_Init(I2Cx_CPU_SDA_GPIO_PORT, &GPIO_InitStruct);
+	
+	  /* NVIC for I2Cx */
+	HAL_NVIC_SetPriority(I2Cx_CPU_ER_IRQn, 0, 1);
+	HAL_NVIC_EnableIRQ(I2Cx_CPU_ER_IRQn);
+	HAL_NVIC_SetPriority(I2Cx_CPU_EV_IRQn, 0, 2);
+	HAL_NVIC_EnableIRQ(I2Cx_CPU_EV_IRQn);
+
+	/*##Configure the I2C peripheral ######################################*/
+    I2C4_Handle.Instance              = I2Cx_CPU;
+    I2C4_Handle.Init.Timing           = I2C_TIMING;
+    I2C4_Handle.Init.OwnAddress1      = STM32F7_ADDR;
+    I2C4_Handle.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+    I2C4_Handle.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+    I2C4_Handle.Init.OwnAddress2      = 0;
+    I2C4_Handle.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+    I2C4_Handle.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+
+    if(HAL_I2C_Init(&I2C4_Handle) != HAL_OK)
+    {
+        /* Initialization Error */
+        Error_Handler();
+    }
+}
+/**
+  * @brief  This function handles External line 0 interrupt request.
+  * @param  None
+  * @retval None
+  */
+void EXTI0_IRQHandler(void)
+{
+  	if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_0))
+  	{
+    	//Read button status
+    	ReadandDisplaySensorStatus(&I2C1_Handle);
+  	}
+
+  	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
 /**
 	* @brief EXTI line detection callbacks
 	* @param GPIO_Pin: Specifies the pins connected EXTI line
 	* @retval None
 	*/
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if(GPIO_Pin == KEY_BUTTON_PIN)
-	{  
-		UserButtonStatus = 1;
-	}
-}
+// void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+// {
+// 	if(GPIO_Pin == KEY_BUTTON_PIN)
+// 	{  
+// 		UserButtonStatus = 1;
+// 	}
+// }
 
 
 /**
@@ -587,48 +513,6 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *I2cHandle)
   }
 }
 
-/**
-  * @brief  Tx Transfer completed callback
-  * @param  UartHandle: UART handle. 
-  * @note   This example shows a simple way to report end of DMA Tx transfer, and 
-  *         you can add your own implementation. 
-  * @retval None
-  */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-  /* Set transmission flag: trasfer complete*/
-  Uart6_TxReady = SET;
-
-  
-}
-
-/**
-  * @brief  Rx Transfer completed callback
-  * @param  UartHandle: UART handle
-  * @note   This example shows a simple way to report end of DMA Rx transfer, and 
-  *         you can add your own implementation.
-  * @retval None
-  */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-  /* Set transmission flag: trasfer complete*/
-  Uart6_RxReady = SET;
-  printf(" run here Txcbufer\r\n");
-
-  
-}
-
-/**
-  * @brief  UART error callbacks
-  * @param  UartHandle: UART handle
-  * @note   This example shows a simple way to report transfer error, and you can
-  *         add your own implementation.
-  * @retval None
-  */
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *UartHandle)
-{
-    Error_Handler();
-}
 /**
 	* @brief  This function is executed in case of error occurrence.
 	* @param  None
