@@ -69,6 +69,7 @@ uint8_t aTxBuffer[] = "Hello Olli";
 uint8_t aRxBuffer[RXBUFFERSIZE];
 I2C_HandleTypeDef I2C1_Handle;
 I2C_HandleTypeDef I2C4_Handle;
+CY8CMBR3116_Result result;
 
 osTimerId  xTimerUpdate;
 osThreadId MainHandler;
@@ -131,8 +132,11 @@ int main(void)
 	MBR3_HOST_INT_Config();
 
 	/* Configure MBR3 */
-	ConfigureMBR3(&I2C1_Handle);
-
+	result = ConfigureMBR3(&I2C1_Handle);
+	if(result != CY8CMBR3116_Result_OK)
+	{
+		DEBUG_ERROR("Configure MBR3");
+	}
 	/* Create threads */
 	// osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
@@ -154,12 +158,12 @@ int main(void)
 	// MainHandler = osThreadCreate(osThread(led_control), NULL);
 
 	/* Threads definition */
-	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
+//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
 
 	/* Start threads */
-	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
-	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
+//	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
+//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
 	// osThreadSuspend(xHeartBeatHandler);
 	// osThreadSuspend(xCircularRingHandler);
 	// osThreadSuspend(xAllColorsHandler);
@@ -169,14 +173,17 @@ int main(void)
 	// osThreadSuspend(xAlternateColorsHandler);
 
 	/* Send hello message through uart */
-	printf("Starting...\r\n");
+	DEBUG_PRINT("Starting.......!");
 
 	/* Start scheduler */
-	osKernelStart();
+//	osKernelStart();
 
 	/* We should never
 	 get here as control is now taken by the scheduler */
-	for(;;);
+//	for(;;);
+	while(1)
+	{
+	}
 }
 
 static void led_control_Thread(void const * argument) {
@@ -434,13 +441,16 @@ void CPU_I2C4_Init(void)
   */
 void EXTI0_IRQHandler(void)
 {
-  	if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_0))
+  	if(__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_0))
   	{
     	//Read button status
-    	ReadandDisplaySensorStatus(&I2C1_Handle);
+    	result = ReadandDisplaySensorStatus(&I2C1_Handle);
+    	if(result != CY8CMBR3116_Result_OK)
+		{
+			Error_Handler();
+		}
   	}
-
-  	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+  	__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
 }
 /**
 	* @brief EXTI line detection callbacks

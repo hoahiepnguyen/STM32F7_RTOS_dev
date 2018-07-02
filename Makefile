@@ -7,7 +7,7 @@
 #------------------------------------------------------------------------------
 # File name         : Makefile
 #
-# project name      : Demo LED Blinky on STM32F7 using GCC
+# project name      : Olli firmware on STM32F7 using GCC
 #
 #
 # Summary: www.cmq.vn - Embedded Sytem Articles, IOT Technology
@@ -21,7 +21,7 @@
 # The compiler to be used.
 #
 #******************************************************************************
-PROJECT_NAME        ?=led-blinky-stm32f7-discovery-gcc
+PROJECT_NAME        ?=olli-stm32f7-gcc
 PROJECT_ROOT        ?=${PWD}
 OUTPUT_DIR			?=Images
 OBJ_BUILD			?=${OUTPUT_DIR}/obj

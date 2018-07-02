@@ -30,7 +30,7 @@ void MBR3_HOST_INT_Config(void)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
 
     /* Enable adn set EXTI Line0 Interrupt to the lowest priority */
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
@@ -42,21 +42,22 @@ CY8CMBR3116_Result ConfigureMBR3(I2C_HandleTypeDef *I2Cx)
     //Wake up the MBR3 device
     /* fix me, following cypress document, MBR3 need to be wrote
         data more than 3 times to wake up */ 
-    HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                &REGMAP_REG, 1, 1000);
-    HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                &REGMAP_REG, 1, 1000);
-    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                &REGMAP_REG, 1, 1000))
+    if(HAL_I2C_IsDeviceReady(handle, (uint16_t)MBR3_ADDR, 4, 5) != HAL_OK)
     {
-        DEBUG_PRINT("Wake up MBR3");
+        DEBUG_ERROR("CY3280-MBR3 is not ready");
+    }
+
+    if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
+                &REGMAP_REG, 1, 1000) != HAL_OK)
+    {
+        DEBUG_ERROR("Wake up MBR3");
         return CY8CMBR3116_Result_ERROR;
-    } 
+    }
     // send configuration
     if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                (uint8_t *)configData, 128, 1000))
+                (uint8_t *)configData, 128, 1000) != HAL_OK)
     {
-        DEBUG_PRINT("Send configuration");
+        DEBUG_ERROR("Send configuration");
         return CY8CMBR3116_Result_ERROR;
     }
 
@@ -64,24 +65,23 @@ CY8CMBR3116_Result ConfigureMBR3(I2C_HandleTypeDef *I2Cx)
     TxBuffer[0] = CTRL_CMD;
     TxBuffer[1] = SAVE_CHECK_CRC;
     if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                (uint8_t *)TxBuffer, 2, 1000))
+                (uint8_t *)TxBuffer, 2, 1000) != HAL_OK)
     {
-        DEBUG_PRINT("CRC checking");
+        DEBUG_ERROR("CRC checking");
         return CY8CMBR3116_Result_ERROR;
     }
 
     TxBuffer[0] = CTRL_CMD;
     TxBuffer[1] = SW_RESET;
     if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                (uint8_t *)TxBuffer, 2, 1000))
+                (uint8_t *)TxBuffer, 2, 1000) != HAL_OK)
     {
-        DEBUG_PRINT("Reset SW");
+        DEBUG_ERROR("Reset SW");
         return CY8CMBR3116_Result_ERROR;
     }
 
     //Provide a delay to calculate and save CRC
     HAL_Delay(200);
-
     return CY8CMBR3116_Result_OK;
 }
 
@@ -91,18 +91,24 @@ CY8CMBR3116_Result ReadandDisplaySensorStatus(I2C_HandleTypeDef *I2Cx)
     uint8_t BUTTON_REG = (uint8_t)BUTTON_STATUS;
     I2C_HandleTypeDef* handle = I2Cx;
 
+    /* fix me, following cypress document, MBR3 need to be wrote
+        data more than 3 times to wake up */ 
+    if(HAL_I2C_IsDeviceReady(handle, (uint16_t)MBR3_ADDR, 4, 5) != HAL_OK)
+    {
+        DEBUG_ERROR("CY3280-MBR3 is not ready");
+    }
     //Config button
     if (HAL_I2C_Master_Transmit(handle, (uint16_t)MBR3_ADDR, 
-                &BUTTON_REG, 1, 1000))
+                &BUTTON_REG, 1, 1000) != HAL_OK)
     {
-        DEBUG_PRINT("Configure button");
+        DEBUG_ERROR("Configure button");
         return CY8CMBR3116_Result_ERROR;
     }
 
     if(HAL_I2C_Master_Receive(handle, (uint16_t)MBR3_ADDR,
-                &button_stat, 1, 1000))
+                &button_stat, 1, 1000) != HAL_OK)
     {
-        DEBUG_PRINT("Read button status");
+        DEBUG_ERROR("Read button status");
         return CY8CMBR3116_Result_ERROR;
     }
 
@@ -117,27 +123,28 @@ void DisplaySensorStatus(uint8_t buffer)
     if(touched)
     {
         touched = 0;
-        printf("Button released\n");
+        DEBUG_PRINT("Button released");
     }
 
-    if((buffer & 0x08) != 0)
+    if(buffer & BUTTON_1)
     {
-        printf("Button 1 TOUCHED\n");
+        //do something
+        DEBUG_PRINT("Button 1 TOUCHED");
         touched = 1;
     }
-    else if((buffer & 0x10) != 0)
+    else if((buffer & BUTTON_2))
     {
-        printf("Button 2 TOUCHED\n");
+        DEBUG_PRINT("Button 2 TOUCHED");
         touched = 1;
     }
-    else if((buffer & 0x20) != 0)
+    else if(buffer & BUTTON_3)
     {
-        printf("Button 3 TOUCHED\n");
+        DEBUG_PRINT("Button 3 TOUCHED");
         touched = 1;
     }
-    else if((buffer & 0x40) != 0)
+    else if(buffer & BUTTON_4)
     {
-        printf("Button 4 TOUCHED\n");
+        DEBUG_PRINT("Button 4 TOUCHED");
         touched = 1;
     }
 }

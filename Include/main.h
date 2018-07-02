@@ -48,14 +48,22 @@
 //#include "uart.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
+
+#define DEBUG
+#ifdef DEBUG
+# define DEBUG_PRINT(msg)      printf("DEBUG: %s\r\n", msg)
+#else
+# define DEBUG_PRINT(msg) do {} while (0)
+#endif
+#ifdef DEBUG
+# define DEBUG_ERROR(fmt)      printf("Fnc:%s, line:%d; ERROR: %s\r\n", \
+                                    __FUNCTION__, __LINE__, fmt)
+#else
+# define DEBUG_ERROR(fmt) do {} while (0)
+#endif
+
 /* User can use this section to tailor USARTx/UARTx instance used and associated 
    resources */
-#ifdef DEBUG
-# define DEBUG_PRINT(x)      printf("DEBUG: %s:%d" x "\r\n", \
-                                      __LINE__, __FUNCTION__)
-#else
-# define DEBUG_PRINT(x) do {} while (0)
-#endif
 /* Definition for USARTx clock resources */
 #define USARTx                           USART1
 #define USARTx_CLK_ENABLE()              __USART1_CLK_ENABLE()

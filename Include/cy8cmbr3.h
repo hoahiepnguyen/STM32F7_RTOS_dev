@@ -119,7 +119,12 @@
 #define SPO_DISABLE             0x00
 
 /* CYPRESS MBR3116 address (Default)*/
-#define MBR3_ADDR            0x37
+#define MBR3_ADDR               0x6E
+
+#define BUTTON_1                0x08
+#define BUTTON_2                0x10
+#define BUTTON_3                0x20
+#define BUTTON_4                0x40
 
 typedef enum 
 {
