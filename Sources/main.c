@@ -88,9 +88,6 @@ static void CPU_CACHE_Enable(void);
 void I2C1_Init(void);
 void CPU_I2C4_Init(void);
 
-static void led_ring_Thread(void const *argument);
-static void i2c_slave_Thread(void const *argument);
-
 static void led_control_Thread(void const * argument);
 static void CircularRing_Task(void const * argument);
 static void HeartBeat_Task(void const * argument);
@@ -138,52 +135,43 @@ int main(void)
 		DEBUG_ERROR("Configure MBR3");
 	}
 	/* Create threads */
-	// osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(led_control, led_control_Thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
-	// osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
-	// osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(HeartBeat, HeartBeat_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(CircularRing, CircularRing_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(AllColors, AllColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(ColorWheel, ColorWheel_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(PatternMove, PatternMove_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(FullEmpty, FullEmpty_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	osThreadDef(AlternateColors, AlternateColors_Task, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
 
-	// xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
-	// xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
-	// xAllColorsHandler = osThreadCreate(osThread(AllColors), NULL);
-	// xColorWheelHandler = osThreadCreate(osThread(ColorWheel), NULL);
-	// xPatternMoveHandler = osThreadCreate(osThread(PatternMove), NULL);
-	// xFullEmptyHandler = osThreadCreate(osThread(FullEmpty), NULL);
-	// xAlternateColorsHandler = osThreadCreate(osThread(AlternateColors), NULL);
-	// MainHandler = osThreadCreate(osThread(led_control), NULL);
+	xHeartBeatHandler = osThreadCreate(osThread(HeartBeat), NULL);
+	xCircularRingHandler = osThreadCreate(osThread(CircularRing), NULL);
+	xAllColorsHandler = osThreadCreate(osThread(AllColors), NULL);
+	xColorWheelHandler = osThreadCreate(osThread(ColorWheel), NULL);
+	xPatternMoveHandler = osThreadCreate(osThread(PatternMove), NULL);
+	xFullEmptyHandler = osThreadCreate(osThread(FullEmpty), NULL);
+	xAlternateColorsHandler = osThreadCreate(osThread(AlternateColors), NULL);
+	MainHandler = osThreadCreate(osThread(led_control), NULL);
 
-	/* Threads definition */
-//	osThreadDef(i2c_slave, i2c_slave_Thread, osPriorityRealtime, 0, configMINIMAL_STACK_SIZE);
-//	osThreadDef(led_ring, led_ring_Thread, osPriorityHigh, 0, configMINIMAL_STACK_SIZE);
-
-	/* Start threads */
-//	i2c_slave_ThreadId = osThreadCreate(osThread(i2c_slave), NULL);
-//	led_ring_ThreadId = osThreadCreate(osThread(led_ring), NULL);
-	// osThreadSuspend(xHeartBeatHandler);
-	// osThreadSuspend(xCircularRingHandler);
-	// osThreadSuspend(xAllColorsHandler);
-	// osThreadSuspend(xColorWheelHandler);
-	// osThreadSuspend(xPatternMoveHandler);
-	// osThreadSuspend(xFullEmptyHandler);
-	// osThreadSuspend(xAlternateColorsHandler);
+	osThreadSuspend(xHeartBeatHandler);
+	osThreadSuspend(xCircularRingHandler);
+	osThreadSuspend(xAllColorsHandler);
+	osThreadSuspend(xColorWheelHandler);
+	osThreadSuspend(xPatternMoveHandler);
+	osThreadSuspend(xFullEmptyHandler);
+	osThreadSuspend(xAlternateColorsHandler);
 
 	/* Send hello message through uart */
 	DEBUG_PRINT("Starting.......!");
 
 	/* Start scheduler */
-//	osKernelStart();
+	osKernelStart();
 
 	/* We should never
 	 get here as control is now taken by the scheduler */
-//	for(;;);
-	while(1)
-	{
-	}
+	for(;;);
+
 }
 
 static void led_control_Thread(void const * argument) {
@@ -249,43 +237,6 @@ static void FullEmpty_Task(void const * argument) {
 
 static void AlternateColors_Task(void const * argument) {
 	stripEffect_AlternateColors(1000, 10, 50, 0, 0, 0, 0, 50);
-}
-
-
-/**
-	* @brief  Toggle LED1 thread
-	* @param  Thread not used
-	* @retval None
-	*/
-static void i2c_slave_Thread(void const *argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		if(HAL_I2C_Slave_Receive(&I2C4_Handle, (uint8_t *)aRxBuffer, 2, 1000) == HAL_OK)
-		{
-			printf("%x\r\n", aRxBuffer[0]);
-			printf("%x\r\n", aRxBuffer[1]);
-		}
-		else
-		{
-			osDelayUntil(&PreviousWakeTime, 100);
-		}
-	}
-}
-
-static void led_ring_Thread(void const *argument)
-{
-	(void) argument;
-	uint32_t PreviousWakeTime = osKernelSysTick();
-
-	for(;;)
-	{
-		osDelayUntil(&PreviousWakeTime, 1000);
-		printf("led ring\r\n");
-	}
 }
 
 /**

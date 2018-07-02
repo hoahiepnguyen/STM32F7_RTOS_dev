@@ -48,8 +48,10 @@
 //#include "uart.h"
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
-
+/* Exported macro ------------------------------------------------------------*/
+//comment it when released
 #define DEBUG
+
 #ifdef DEBUG
 # define DEBUG_PRINT(msg)      printf("DEBUG: %s\r\n", msg)
 #else
