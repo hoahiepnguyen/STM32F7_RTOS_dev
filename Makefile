@@ -21,24 +21,24 @@
 # The compiler to be used.
 #
 #******************************************************************************
-PROJECT_NAME        ?=olli-stm32f7-gcc
-PROJECT_ROOT        ?=${PWD}
-OUTPUT_DIR			?=Images
-OBJ_BUILD			?=${OUTPUT_DIR}/obj
-TARGET_DESC			?=${PROJECT_NAME}
-OPT					?=s
-CPU_NAME			?=cortex-m7
+PROJECT_NAME        =olli-stm32f7-gcc
+PROJECT_ROOT        =${PWD}
+OUTPUT_DIR			=Images
+OBJ_BUILD			=${OUTPUT_DIR}/obj
+TARGET_DESC			=${PROJECT_NAME}
+OPT					=3
+CPU_NAME			=cortex-m7
 
 
 ## Configure the st-flash directory for flashing or dump memory
-ST_FLASH      		?= st-flash
-ST_DUMP 			?= read ${OUTPUT_DIR}/${TARGET_DESC}.dump 0x20000000 0x2FFFF
+ST_FLASH      		= st-flash
+ST_DUMP 			= read ${OUTPUT_DIR}/${TARGET_DESC}.dump 0x20000000 0x2FFFF
 ##############################################################################
 #
 #   Common directories 
 #
 ##############################################################################
-COMPILER            ?=${OBJ_BUILD}
+COMPILER            =${OBJ_BUILD}
 ##############################################################################
 #
 #   Application Include Directories
@@ -77,8 +77,11 @@ CPU_DEF=-mcpu=${CPU_NAME} \
         -ffunction-sections \
         -fdata-sections \
         -Wa,-adhlns=${COMPILER}/$(*F).lst \
-        --specs=rdimon.specs
-
+        --specs=rdimon.specs \
+        -DARM_MATH_CM7 \
+        -DDEBUG \
+        -DUSE_USB_FS \
+        -DUSE_IOEXPANDER \
 ##############################################################################
 #
 #   The flags passed to the assembler.
@@ -121,9 +124,11 @@ LD=arm-none-eabi-gcc -mthumb -mcpu=${CPU_NAME} ${FPU}
 #
 ##############################################################################
 
-LDFLAGS+= -lc -u _printf_float 
-LDFLAGS+= -Wl,-Map=${COMPILER}/${TARGET_DESC}.map,--cref,--gc-sections,--no-warn-mismatch 
+LDFLAGS+= -lc -u _printf_float
+LDFLAGS+= -Wl,-Map=${COMPILER}/${TARGET_DESC}.map,--cref,--gc-sections,--no-warn-mismatch
 LDFLAGS+= -o ${COMPILER}/${TARGET_DESC}.elf
+#LDFLAGS+= -T$(LINKER_SCRIPT_DEV)
+#LDFLAGS+= -nostartfiles
 
 ##############################################################################
 #
