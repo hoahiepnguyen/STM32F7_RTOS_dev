@@ -13,6 +13,7 @@ OBJECTS+=${COMPILER}/main.o \
 		 ${COMPILER}/stripEffects.o \
 		 ${COMPILER}/cy8cmbr3.o \
 		 ${COMPILER}/uart.o \
+		 ${COMPILER}/gpio.o \
 
 ##############################################################################
 #

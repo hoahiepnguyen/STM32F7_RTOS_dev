@@ -52,7 +52,7 @@
 #include "pdm_filter.h"
 #include "DSP.h"
 #include "arm_math.h"
-
+#include "gpio.h"
 /** @addtogroup STM32F7xx_HAL_Examples
 	* @{
 	*/
@@ -67,8 +67,9 @@
 #define UPDATE_INTERVAL 		15 //refresh rate: 1/0.015ms = 66Hz
 #define TASK_INTERVAL			5000
 /* Private variables ---------------------------------------------------------*/
-// osThreadId led_ring_ThreadId;
-// osThreadId i2c_slave_ThreadId;
+extern UART_HandleTypeDef UART3_Handle;
+extern __IO ITStatus Uart3Tx_Ready;
+extern __IO ITStatus Uart3Rx_Ready;
 
 LPTIM_HandleTypeDef             LptimHandle;
 
@@ -115,6 +116,10 @@ uint8_t Direction;
 
 extern __IO uint16_t idxFrmUSB;
 
+/* Buffer used for transmission */
+uint8_t aTxBuffer[] = "Hello Olli";
+/* Buffer used for reception */
+uint8_t aRxBuffer[RXBUFFERSIZE];
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void CPU_CACHE_Enable(void);
@@ -321,9 +326,11 @@ int main(void)
 
 	/* Pin configuration for audio */
 	Codec_GPIO_Init();
+	GPIO_INT_Init();
 
 	/* Configure LED RING */
 	ws281x_init();
+
 	/* PWM output */
 	PWMInit();
 
@@ -333,18 +340,17 @@ int main(void)
 	/* Configure logs */
 	log_init();
 
-//	UART3_Init();
-	DEBUG_PRINT("Starting.......!");
+	UART3_Init();
 
 	/* 2 channels:16Khz Audio USB */
 	USB_Audio_Config();
 
 	/* Configure I2C bus */
 	I2C1_Init();
-	STA321MP_Ini();
+	 STA321MP_Ini();
 
 //	CPU_I2C4_Init();
-	DEBUG_PRINT("Init done.......!");
+	DEBUG_PRINT("Starting.......!");
 
 	__disable_irq();
 	MIC1TO6_Init();
@@ -355,15 +361,37 @@ int main(void)
 	MBR3_HOST_INT_Config();
 
 	/* Configure MBR3 */
-	result = ConfigureMBR3(&hi2c1);
-	if(result != CY8CMBR3116_Result_OK)
-	{
-		DEBUG_ERROR("Configure MBR3");
-	}
+	// result = ConfigureMBR3(&hi2c1);
+	// if(result != CY8CMBR3116_Result_OK)
+	// {
+	// 	DEBUG_ERROR("Configure MBR3");
+	// }
+
+	// Uart3Tx_Ready = RESET;
+	// if(HAL_UART_Transmit_DMA(&UART3_Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
+	// {
+	// 	DEBUG_ERROR("UART Transmission");
+	// 	return -1;
+	// }
+	// while(Uart3Tx_Ready != SET)
+	// {
+	// }
+	DEBUG_PRINT("Init done.......!");
 
 	while(1)
 	{
+
 		BF_Update();
+		// Uart3Rx_Ready = RESET;
+		// if(HAL_UART_Receive_IT(&UART3_Handle, (uint8_t *)aRxBuffer, 2) != HAL_OK)
+		// {
+		// 	DEBUG_ERROR("UART Transmission");
+		// }
+		// while(Uart3Rx_Ready != SET)
+		// {
+		// }
+		// printf("%d \r\n", aRxBuffer[0]);
+		// printf("%d \r\n", aRxBuffer[1]);
 	}
 
 }
@@ -667,6 +695,18 @@ void EXTI0_IRQHandler(void)
 		{
 			DEBUG_ERROR("CYPRESS read status");
 		}
+
+		// switch(result)
+		// {
+		// 	case 1: 
+		// 		break;
+		// 	case 2:
+		// 		break;
+		// 	case 3:
+		// 		break;
+		// 	case 4:
+		// 		break;
+		// }
 	}
 	__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
 }
@@ -720,6 +760,7 @@ static void USB_Audio_Config(void)
 	USBD_Start(&hUSBDDevice);                          
 #endif 
 }
+
 
 #ifdef  USE_FULL_ASSERT
 /**

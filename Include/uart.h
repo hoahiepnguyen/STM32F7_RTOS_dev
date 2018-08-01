@@ -38,6 +38,11 @@
 #define USARTX_MAIN_IRQn                        USART3_IRQn
 #define USARTX_MAIN_IRQHandler                  USART3_IRQHandler
 
+/* Command for communication */
+#define WAKEWORD_BUTTON         0x00
+#define VOLUMEUP_BUTTON         0x01
+#define VOLUMEDOWN_BUTTON       0x02
+#define VOLUMEMUTE_BUTTON       0x03
 /* Exported functions ------------------------------------------------------- */
 void USARTX_MAIN_IRQHandler(void);
 void USARTX_MAIN_DMA_TX_IRQHandler(void);

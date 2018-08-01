@@ -158,6 +158,7 @@ int UART_ReceiveMsg(uint8_t *msg, uint8_t size)
   */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
+    printf("run here \r\n");
 	/* Set transmission flag: trasfer complete*/
 	Uart3Tx_Ready = SET;
 }
@@ -172,6 +173,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
   /* Set transmission flag: trasfer complete*/
+    printf("run here \r\n");
   Uart3Rx_Ready = SET;
 }
 
@@ -207,6 +209,7 @@ void USARTX_MAIN_IRQHandler(void)
   */
 void USARTX_MAIN_DMA_TX_IRQHandler(void)
 {
+        printf("dma run here \r\n");
   HAL_DMA_IRQHandler(UART3_Handle.hdmatx);
 }
 
