@@ -39,6 +39,7 @@
 #include "main.h"
 #include "stm32f7xx_it.h"
 #include "cmsis_os.h"
+#include "i2c.h"
 /** @addtogroup STM32F7xx_HAL_Examples
   * @{
   */
@@ -265,6 +266,7 @@ void I2Cx_MASTER_ER_IRQHandler(void)
   */
 void I2Cx_CPU_EV_IRQHandler(void)
 {
+  printf("debug here\r\n");
   HAL_I2C_EV_IRQHandler(&hi2c4);
 }
 
@@ -276,7 +278,9 @@ void I2Cx_CPU_EV_IRQHandler(void)
   */
 void I2Cx_CPU_ER_IRQHandler(void)
 {
+    printf("debug here\r\n");
   HAL_I2C_ER_IRQHandler(&hi2c4);
+
 }
 
 /******************************************************************************/

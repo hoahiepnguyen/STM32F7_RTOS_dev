@@ -62,8 +62,8 @@
 	*/ 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define I2CX_TIMING             0x00A0689A //0x40912732 //0x00303D5D; 0x00A0689A
-#define STM32F7_ADDR 			0xD0
+#define I2CX_TIMING             0x40912732 //0x40912732 //0x00303D5D; 0x00A0689A
+#define I2C_ADDRESS 			0xD0
 #define UPDATE_INTERVAL 		15 //refresh rate: 1/0.015ms = 66Hz
 #define TASK_INTERVAL			5000
 /* Private variables ---------------------------------------------------------*/
@@ -129,7 +129,7 @@ void MX_I2C1_Init(void);
 void PWMInit(void);
 
 void I2C1_Init(void);
-//void CPU_I2C4_Init(void);
+void CPU_I2C4_Init(void);
 
 /* Private functions ---------------------------------------------------------*/
 /*--------------INLINE FUNCTION-----------------------------------------------*/
@@ -326,7 +326,7 @@ int main(void)
 
 	/* Pin configuration for audio */
 	Codec_GPIO_Init();
-	GPIO_INT_Init();
+//	GPIO_INT_Init();
 
 	/* Configure LED RING */
 	ws281x_init();
@@ -339,8 +339,9 @@ int main(void)
 
 	/* Configure logs */
 	log_init();
+	DEBUG_PRINT("Starting.......!");
 
-	UART3_Init();
+//	UART3_Init();
 
 	/* 2 channels:16Khz Audio USB */
 	USB_Audio_Config();
@@ -350,7 +351,6 @@ int main(void)
 	 STA321MP_Ini();
 
 //	CPU_I2C4_Init();
-	DEBUG_PRINT("Starting.......!");
 
 	__disable_irq();
 	MIC1TO6_Init();
@@ -361,37 +361,17 @@ int main(void)
 	MBR3_HOST_INT_Config();
 
 	/* Configure MBR3 */
-	// result = ConfigureMBR3(&hi2c1);
-	// if(result != CY8CMBR3116_Result_OK)
-	// {
-	// 	DEBUG_ERROR("Configure MBR3");
-	// }
+	result = ConfigureMBR3(&hi2c1);
+	if(result != CY8CMBR3116_Result_OK)
+	{
+		DEBUG_ERROR("Configure MBR3");
+	}
 
-	// Uart3Tx_Ready = RESET;
-	// if(HAL_UART_Transmit_DMA(&UART3_Handle, (uint8_t *)aTxBuffer, TXBUFFERSIZE) != HAL_OK)
-	// {
-	// 	DEBUG_ERROR("UART Transmission");
-	// 	return -1;
-	// }
-	// while(Uart3Tx_Ready != SET)
-	// {
-	// }
-	DEBUG_PRINT("Init done.......!");
+	DEBUG_PRINT("Init done.....OKay.!");
 
 	while(1)
 	{
-
 		BF_Update();
-		// Uart3Rx_Ready = RESET;
-		// if(HAL_UART_Receive_IT(&UART3_Handle, (uint8_t *)aRxBuffer, 2) != HAL_OK)
-		// {
-		// 	DEBUG_ERROR("UART Transmission");
-		// }
-		// while(Uart3Rx_Ready != SET)
-		// {
-		// }
-		// printf("%d \r\n", aRxBuffer[0]);
-		// printf("%d \r\n", aRxBuffer[1]);
 	}
 
 }
@@ -565,12 +545,12 @@ void I2C1_Init(void)
 
 void CPU_I2C4_Init(void)
 {
-	GPIO_InitTypeDef  GPIO_InitStruct;
-	RCC_PeriphCLKInitTypeDef  RCC_PeriphCLKInitStruct;
+	GPIO_InitTypeDef  			GPIO_InitStruct;
+	RCC_PeriphCLKInitTypeDef  	RCC_PeriphCLKInitStruct;
 
 	  /*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
 	RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2Cx_CPU;
-	RCC_PeriphCLKInitStruct.I2c1ClockSelection = RCC_I2Cx_CPU_CLKSOURCE_SYSCLK;
+	RCC_PeriphCLKInitStruct.I2c4ClockSelection = RCC_I2Cx_CPU_CLKSOURCE_SYSCLK;
 	HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
 
 	/*##-2- Enable peripherals and GPIO Clocks #################################*/
@@ -580,6 +560,7 @@ void CPU_I2C4_Init(void)
 
 	  /* Enable I2Cx clock */
 	I2Cx_CPU_CLK_ENABLE();
+
 	/*##-3- Configure peripheral GPIO ##########################################*/
 	  /** I2C1 GPIO configuration
 		PD12 ------> I2C4_SCL
@@ -607,18 +588,18 @@ void CPU_I2C4_Init(void)
 	/*##Configure the I2C peripheral ######################################*/
 	hi2c4.Instance              = I2Cx_CPU;
 	hi2c4.Init.Timing           = I2CX_TIMING;
-	hi2c4.Init.OwnAddress1      = STM32F7_ADDR;
 	hi2c4.Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
 	hi2c4.Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
-	hi2c4.Init.OwnAddress2      = 0;
 	hi2c4.Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
 	hi2c4.Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+	hi2c4.Init.OwnAddress1      = I2C_ADDRESS;
 
 	if(HAL_I2C_Init(&hi2c4) != HAL_OK)
 	{
 		/* Initialization Error */
 		DEBUG_ERROR("I2C4 Configure");
 	}
+	HAL_Delay(100);
 }
 
 
@@ -695,18 +676,6 @@ void EXTI0_IRQHandler(void)
 		{
 			DEBUG_ERROR("CYPRESS read status");
 		}
-
-		// switch(result)
-		// {
-		// 	case 1: 
-		// 		break;
-		// 	case 2:
-		// 		break;
-		// 	case 3:
-		// 		break;
-		// 	case 4:
-		// 		break;
-		// }
 	}
 	__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_0);
 }
