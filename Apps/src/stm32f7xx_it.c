@@ -39,6 +39,7 @@
 #include "main.h"
 #include "stm32f7xx_it.h"
 #include "cmsis_os.h"
+#include "i2c.h"
 /** @addtogroup STM32F7xx_HAL_Examples
   * @{
   */
@@ -51,10 +52,22 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-extern UART_HandleTypeDef UART1_Handle;
-extern UART_HandleTypeDef UART3_Handle;
-extern I2C_HandleTypeDef I2C1_Handle;
-extern I2C_HandleTypeDef I2C4_Handle;
+extern UART_HandleTypeDef huart1;
+
+extern I2C_HandleTypeDef hi2c1;
+extern I2C_HandleTypeDef hi2c4;
+
+extern HCD_HandleTypeDef hhcd;
+extern PCD_HandleTypeDef hpcd;
+extern __IO uint8_t   flg10ms;
+extern __IO uint8_t   flgShipping;
+extern __IO uint16_t WaveRecord_flgIni;
+__IO uint32_t cntOS;
+
+
+extern UART_HandleTypeDef huart3;
+extern SPI_HandleTypeDef hspi5;
+extern Mic_Array_Data Buffer1;
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
@@ -158,7 +171,15 @@ void DebugMon_Handler(void)
 void SysTick_Handler(void)
 {
   HAL_IncTick();
-  osSystickHandler();
+//  osSystickHandler();
+  
+  cntOS++;
+  if (cntOS == 10)
+  {
+      cntOS = 0;
+      flg10ms = 1;
+      
+  }
 }
 // void SysTick_Handler(void)
 // {
@@ -172,41 +193,6 @@ void SysTick_Handler(void)
 /*  file (startup_stm32f7xx.s).                                               */
 /******************************************************************************/
 /**
-  * @brief  This function handles DMA interrupt request.  
-  * @param  None
-  * @retval None
-  * @Note   This function is redefined in "main.h" and related to DMA  
-  *         used for USART data transmission     
-  */
-void USART3_DMA_RX_IRQHandler(void)
-{
-  HAL_DMA_IRQHandler(UART3_Handle.hdmarx);
-}
-
-/**
-  * @brief  This function handles DMA interrupt request.
-  * @param  None
-  * @retval None
-  * @Note   This function is redefined in "main.h" and related to DMA  
-  *         used for USART data reception    
-  */
-void USART3_DMA_TX_IRQHandler(void)
-{
-  HAL_DMA_IRQHandler(UART3_Handle.hdmatx);
-}
-
-/**
-  * @brief  This function handles UART interrupt request.  
-  * @param  None
-  * @retval None
-  * @Note   This function is redefined in "main.h" and related to DMA  
-  *         used for USART data transmission     
-  */
-void USART3_IRQHandler(void)
-{
-  HAL_UART_IRQHandler(&UART3_Handle);
-}
-/**
   * @brief  This function handles UART interrupt request.  
   * @param  None
   * @retval None
@@ -215,18 +201,8 @@ void USART3_IRQHandler(void)
   */
 void USARTx_IRQHandler(void)
 {
-  HAL_UART_IRQHandler(&UART1_Handle);
+  HAL_UART_IRQHandler(&huart1);
 }
-
-/**
-  * @brief  This function handles external lines 15 to 10 interrupt request.
-  * @param  None
-  * @retval None
-  */
-// void EXTI15_10_IRQHandler(void)
-// {
-//   HAL_GPIO_EXTI_IRQHandler(KEY_BUTTON_PIN);
-// }
 
 /**
   * @brief  This function handles PPP interrupt request.
@@ -246,7 +222,7 @@ void USARTx_IRQHandler(void)
   */
 void I2Cx_MASTER_DMA_RX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(I2C1_Handle.hdmarx);
+  HAL_DMA_IRQHandler(hi2c1.hdmarx);
 }
 
 /**
@@ -258,7 +234,7 @@ void I2Cx_MASTER_DMA_RX_IRQHandler(void)
   */
 void I2Cx_MASTER_DMA_TX_IRQHandler(void)
 {
-  HAL_DMA_IRQHandler(I2C1_Handle.hdmatx);
+  HAL_DMA_IRQHandler(hi2c1.hdmatx);
 }
 /**
   * @brief  This function handles I2C event interrupt request.
@@ -268,7 +244,7 @@ void I2Cx_MASTER_DMA_TX_IRQHandler(void)
   */
 void I2Cx_MASTER_EV_IRQHandler(void)
 {
-  HAL_I2C_EV_IRQHandler(&I2C1_Handle);
+  HAL_I2C_EV_IRQHandler(&hi2c1);
 }
 
 /**
@@ -279,7 +255,7 @@ void I2Cx_MASTER_EV_IRQHandler(void)
   */
 void I2Cx_MASTER_ER_IRQHandler(void)
 {
-  HAL_I2C_ER_IRQHandler(&I2C1_Handle);
+  HAL_I2C_ER_IRQHandler(&hi2c1);
 }
 
 /**
@@ -290,7 +266,8 @@ void I2Cx_MASTER_ER_IRQHandler(void)
   */
 void I2Cx_CPU_EV_IRQHandler(void)
 {
-  HAL_I2C_EV_IRQHandler(&I2C4_Handle);
+  printf("debug here\r\n");
+  HAL_I2C_EV_IRQHandler(&hi2c4);
 }
 
 /**
@@ -301,9 +278,61 @@ void I2Cx_CPU_EV_IRQHandler(void)
   */
 void I2Cx_CPU_ER_IRQHandler(void)
 {
-  HAL_I2C_ER_IRQHandler(&I2C4_Handle);
+    printf("debug here\r\n");
+  HAL_I2C_ER_IRQHandler(&hi2c4);
+
 }
 
+/******************************************************************************/
+/*                 STM32F7xx Peripherals Interrupt Handlers                   */
+/*  Add here the Interrupt Handler for the used peripheral(s) (PPP), for the  */
+/*  available peripheral interrupt handler's name please refer to the startup */
+/*  file (startup_stm32f7xx.s).                                               */
+/******************************************************************************/
+
+/**
+  * @brief  This function handles USB-On-The-Go FS/HS global interrupt request.
+  * @param  None
+  * @retval None
+  */
+#ifdef USE_USB_FS
+void OTG_FS_IRQHandler(void)
+#else
+void OTG_HS_IRQHandler(void)
+#endif
+{
+  //sop1hc HAL_HCD_IRQHandler(&hhcd);
+  HAL_PCD_IRQHandler(&hpcd);
+}
+
+/**
+  * @brief This function handles DMA2 Stream 4 interrupt request.
+  * @param None
+  * @retval None
+  */
+void AUDIO_OUT_SAIx_DMAx_IRQHandler(void)
+{
+  //HAL_DMA_IRQHandler(haudio_out_sai.hdmatx);
+}
+
+/**
+  * @brief This function handles DMA2 Stream 7 interrupt request.
+  * @param None
+  * @retval None
+  */
+void AUDIO_IN_SAIx_DMAx_IRQHandler(void)
+{
+  //HAL_DMA_IRQHandler(haudio_in_sai.hdmarx);
+}
+
+/**
+  * @brief  This function handles PPP interrupt request.
+  * @param  None
+  * @retval None
+  */
+/*void PPP_IRQHandler(void)
+{
+}*/
 /**
   * @}
   */ 

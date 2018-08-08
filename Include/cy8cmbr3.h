@@ -3,8 +3,7 @@
 #define __CY8CMBR3_H
 
 /* Include                                                       */
-#include "stm32f7xx_hal.h"
-#include "stm32746g_discovery.h"
+#include "main.h"
 
 /* CY8CMBR3116 Register Map Offset Address */
 #define REGMAP_ORIGIN           0x00

@@ -3,7 +3,7 @@
 
 #include "main.h"
 #include "cmsis_os.h"
-
+#include "ws281x.h"
 #define HEARTBEAT_STEPS		50
 
 void stripEffect_CircularRing(uint32_t interval, uint8_t red, uint8_t green,

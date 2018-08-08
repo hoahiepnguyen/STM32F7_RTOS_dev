@@ -33,6 +33,8 @@ MEMORY
     RAM   (xrw)     : ORIGIN = 0x20000000, LENGTH = 320K
 }
 
+GROUP(libgcc.a libc.a libm.a libnosys.a)
+
 /* Define output sections */
 SECTIONS
 {
@@ -140,18 +142,6 @@ SECTIONS
         . = . + _Min_Stack_Size;
         . = ALIGN(4);
     } >RAM
-    
-    
-    
-    /* Remove information from the standard libraries */
-    /DISCARD/ :
-    {
-        libgcc.a
-        libg.a
-        libc.a
-        libm.a
-        libnosys.a
-    }
-    
+
     .ARM.attributes 0 : { *(.ARM.attributes) }
 }

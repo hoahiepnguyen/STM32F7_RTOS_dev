@@ -60,9 +60,6 @@ void PendSV_Handler(void);
 void SysTick_Handler(void);
 void ETH_IRQHandler(void);
 void USARTx_IRQHandler(void);
-void USART3_IRQHandler(void);
-void USART3_DMA_TX_IRQHandler(void);
-void USART3_DMA_RX_IRQHandler(void);
 void I2Cx_MASTER_DMA_RX_IRQHandler(void);
 void I2Cx_MASTER_DMA_TX_IRQHandler(void);
 void I2Cx_MASTER_EV_IRQHandler(void);
@@ -70,6 +67,17 @@ void I2Cx_MASTER_ER_IRQHandler(void);
 void I2Cx_CPU_EV_IRQHandler(void);
 void I2Cx_CPU_ER_IRQHandler(void);
 void EXTI0_IRQHandler(void);
+
+#ifdef USE_USB_FS
+void OTG_FS_IRQHandler(void);
+#else
+void OTG_HS_IRQHandler(void);
+#endif
+void EXTI9_5_IRQHandler(void);
+void EXTI2_IRQHandler(void);
+void EXTI15_10_IRQHandler(void);
+void AUDIO_IN_SAIx_DMAx_IRQHandler(void);
+void AUDIO_OUT_SAIx_DMAx_IRQHandler(void);
 #ifdef __cplusplus
 }
 #endif

@@ -35,7 +35,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "log.h"
+#include "i2c.h"
 /** @addtogroup STM32F7xx_HAL_Examples
   * @{
   */
@@ -226,7 +227,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
   /* NVIC for I2Cx */
   HAL_NVIC_SetPriority(I2Cx_MASTER_ER_IRQn, 0, 1);
   HAL_NVIC_EnableIRQ(I2Cx_MASTER_ER_IRQn);
-  HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 0, 2);
+  HAL_NVIC_SetPriority(I2Cx_MASTER_EV_IRQn, 3, 0);
   HAL_NVIC_EnableIRQ(I2Cx_MASTER_EV_IRQn);
 }
 
